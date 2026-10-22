@@ -1,0 +1,6 @@
+{
+  "name": "FBIS Multi-Branch School Management System",
+  "description": "Multi-branch school management system with role-based authentication, student profiles, fee collections, inventory, Excel import/export, system backup, and academic performance tracking.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
