@@ -631,13 +631,20 @@ export const StudentProfile: React.FC = () => {
                     </div>
 
                     <div>
-                      <label className="block text-xs font-medium text-slate-600 mb-1">Class / Grade</label>
-                      <input
-                        type="text"
+                      <label className="block text-xs font-medium text-slate-600 mb-1">
+                        កម្រិត/ថ្នាក់ (Class / Grade)
+                      </label>
+                      <select
                         value={editClass}
                         onChange={(e) => setEditClass(e.target.value)}
-                        className="w-full h-9 px-3 text-xs border border-slate-300 rounded-md font-khmer focus:ring-1 focus:ring-blue-500 focus:outline-none"
-                      />
+                        className="w-full h-9 px-3 text-xs border border-slate-300 rounded-md font-khmer bg-white focus:ring-1 focus:ring-blue-500 focus:outline-none"
+                      >
+                        {settings.gradeLevels.map((gl, idx) => (
+                          <option key={idx} value={gl}>
+                            {gl}
+                          </option>
+                        ))}
+                      </select>
                     </div>
 
                     <div className="md:col-span-2">

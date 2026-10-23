@@ -1,5 +1,6 @@
 import React, { useState, useRef } from 'react';
 import { useSchool } from '../../context/SchoolContext';
+import { ConfirmModal } from '../common/ConfirmModal';
 import { 
   Database, 
   Download, 
@@ -8,7 +9,13 @@ import {
   AlertTriangle, 
   Check, 
   Clock, 
-  RotateCcw 
+  RotateCcw,
+  Send,
+  RefreshCw,
+  ExternalLink,
+  CheckCircle2,
+  XCircle,
+  Settings
 } from 'lucide-react';
 
 export const BackupRestoreView: React.FC = () => {
@@ -21,12 +28,21 @@ export const BackupRestoreView: React.FC = () => {
     payments, 
     academicRecords, 
     products, 
-    branches 
+    branches,
+    sendTelegramBackupNow,
+    setActiveTab
   } = useSchool();
 
   const [restoreStatus, setRestoreStatus] = useState<{ success: boolean; msg: string } | null>(null);
   const [selectedFileName, setSelectedFileName] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Telegram Direct Backup
+  const [isTelegramBackingUp, setIsTelegramBackingUp] = useState(false);
+  const [telegramBackupStatus, setTelegramBackupStatus] = useState<{ success: boolean; msg: string } | null>(null);
+
+  // Reset Confirm Modal
+  const [isResetModalOpen, setIsResetModalOpen] = useState(false);
 
   const handleDownloadBackup = () => {
     const jsonStr = createBackupJson();
@@ -39,6 +55,24 @@ export const BackupRestoreView: React.FC = () => {
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
+  };
+
+  const handleSendTelegramBackup = async () => {
+    setIsTelegramBackingUp(true);
+    setTelegramBackupStatus(null);
+    const result = await sendTelegramBackupNow();
+    setIsTelegramBackingUp(false);
+    if (result.success) {
+      setTelegramBackupStatus({
+        success: true,
+        msg: 'ឯកសារ JSON Backup មូលដ្ឋានទិន្នន័យត្រូវបានផ្ញើទៅកាន់ Telegram ដោយជោគជ័យ! (Full database backup JSON sent to Telegram).'
+      });
+    } else {
+      setTelegramBackupStatus({
+        success: false,
+        msg: `មិនអាចផ្ញើ Backup ទៅកាន់ Telegram: ${result.error || 'Unknown error'}`
+      });
+    }
   };
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -73,13 +107,12 @@ export const BackupRestoreView: React.FC = () => {
   };
 
   const handleResetToDefaults = () => {
-    if (confirm('Are you sure you want to restore the default seed data? All custom additions will be reset to demonstration data.')) {
-      resetToDefaults();
-      setRestoreStatus({
-        success: true,
-        msg: 'System successfully reset to authentic FBIS sample data.'
-      });
-    }
+    resetToDefaults();
+    setIsResetModalOpen(false);
+    setRestoreStatus({
+      success: true,
+      msg: 'System successfully reset to authentic FBIS sample data.'
+    });
   };
 
   return (
@@ -133,6 +166,86 @@ export const BackupRestoreView: React.FC = () => {
           <span>{restoreStatus.msg}</span>
         </div>
       )}
+
+      {/* Telegram Automated Cloud Backup Banner & Card */}
+      <div className="bg-white p-5 rounded-xl shadow-xs border border-sky-200 bg-gradient-to-r from-sky-50/70 via-blue-50/40 to-white">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div className="flex items-start gap-3.5">
+            <div className="w-12 h-12 rounded-xl bg-sky-500 text-white flex items-center justify-center shrink-0 shadow-xs">
+              <Send className="w-6 h-6" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <h3 className="text-sm font-bold text-slate-900 font-khmer">
+                  ការបម្រុងទុកទិន្នន័យស្វ័យប្រវត្តិតាម Telegram (Telegram Automated Cloud Backup)
+                </h3>
+                <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                  settings.telegramConfig?.enabled && settings.telegramConfig?.autoDailyBackup && settings.telegramConfig?.botToken
+                    ? 'bg-emerald-100 text-emerald-800'
+                    : 'bg-slate-200 text-slate-600'
+                }`}>
+                  {settings.telegramConfig?.enabled && settings.telegramConfig?.autoDailyBackup && settings.telegramConfig?.botToken
+                    ? '● ស្វ័យប្រវត្តិកំពុងដំណើរការ (Automated Active)'
+                    : '○ មិនទាន់បើកដំណើរការ (Not Enabled)'}
+                </span>
+              </div>
+              <p className="text-xs text-slate-600 mt-1 font-khmer leading-relaxed">
+                ប្រព័ន្ធនឹងផ្ញើឯកសារ JSON Backup ពេញលេញ និងរបាយការណ៍សង្ខេបទៅកាន់ Telegram Channel ជារៀងរាល់ថ្ងៃនៅវេលាម៉ោង{' '}
+                <span className="font-mono font-bold text-sky-800">{settings.telegramConfig?.dailyBackupTime || '18:00'}</span>។
+                {settings.telegramConfig?.channelName && (
+                  <span className="ml-1 text-slate-500 font-sans">
+                    (Destination: <b>{settings.telegramConfig.channelName}</b>)
+                  </span>
+                )}
+              </p>
+              {settings.telegramConfig?.lastBackupDate && (
+                <div className="text-[11px] text-slate-500 mt-1">
+                  កាលបរិច្ឆេទ Backup ចុងក្រោយ: <span className="font-mono text-slate-800 font-semibold">{new Date(settings.telegramConfig.lastBackupDate).toLocaleString()}</span>
+                </div>
+              )}
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2.5 shrink-0">
+            <button
+              type="button"
+              onClick={() => {
+                localStorage.setItem('fbis_settings_tab', 'telegram');
+                setActiveTab('settings');
+              }}
+              className="px-3 py-2 bg-white hover:bg-slate-50 text-slate-700 text-xs font-semibold rounded-lg border border-slate-300 shadow-2xs flex items-center gap-1.5 transition-colors cursor-pointer"
+            >
+              <Settings className="w-3.5 h-3.5 text-slate-500" />
+              <span>កែសម្រួលការកំណត់ (Settings)</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={handleSendTelegramBackup}
+              disabled={isTelegramBackingUp || !settings.telegramConfig?.botToken || !settings.telegramConfig?.chatId}
+              className="px-4 py-2 bg-sky-600 hover:bg-sky-700 text-white text-xs font-bold rounded-lg shadow-xs flex items-center gap-1.5 transition-colors disabled:opacity-50 cursor-pointer"
+            >
+              <Send className={`w-3.5 h-3.5 ${isTelegramBackingUp ? 'animate-bounce' : ''}`} />
+              <span>{isTelegramBackingUp ? 'កំពុងផ្ញើ...' : 'ផ្ញើ Backup ទៅ Telegram ឥឡូវនេះ'}</span>
+            </button>
+          </div>
+        </div>
+
+        {telegramBackupStatus && (
+          <div className={`mt-3 p-3 rounded-lg border text-xs flex items-center gap-2 ${
+            telegramBackupStatus.success
+              ? 'bg-emerald-50 border-emerald-200 text-emerald-800'
+              : 'bg-rose-50 border-rose-200 text-rose-800'
+          }`}>
+            {telegramBackupStatus.success ? (
+              <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+            ) : (
+              <XCircle className="w-4 h-4 text-rose-600 shrink-0" />
+            )}
+            <span className="font-khmer">{telegramBackupStatus.msg}</span>
+          </div>
+        )}
+      </div>
 
       {/* Two Column Actions: Backup & Restore */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
@@ -209,7 +322,7 @@ export const BackupRestoreView: React.FC = () => {
           </h3>
 
           <button
-            onClick={handleResetToDefaults}
+            onClick={() => setIsResetModalOpen(true)}
             className="text-xs text-red-600 hover:text-red-700 flex items-center gap-1 font-semibold hover:underline cursor-pointer"
           >
             <RotateCcw className="w-3.5 h-3.5" />
@@ -244,6 +357,17 @@ export const BackupRestoreView: React.FC = () => {
           </tbody>
         </table>
       </div>
+
+      {/* In-app Confirmation Modal for System Reset */}
+      <ConfirmModal
+        isOpen={isResetModalOpen}
+        title="កំណត់ប្រព័ន្ធឡើងវិញ (Reset to Default Demo Data)"
+        message="តើលោកអ្នកពិតជាចង់កំណត់ទិន្នន័យត្រឡប់ទៅទិន្នន័យគំរូដើមរបស់ FBIS វិញមែនទេ? រាល់ទិន្នន័យដែលបានបញ្ចូលថ្មីនឹងត្រូវបានលុបជំនួសវិញ។"
+        itemName="Full Database Reset to Initial FBIS Data"
+        confirmText="Reset All Data"
+        onConfirm={handleResetToDefaults}
+        onClose={() => setIsResetModalOpen(false)}
+      />
     </div>
   );
 };

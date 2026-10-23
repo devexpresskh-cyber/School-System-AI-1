@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useSchool } from '../../context/SchoolContext';
 import { Branch, User, UserPermissions, UserRole } from '../../types';
+import { ConfirmModal } from '../common/ConfirmModal';
 import { 
   Building2, 
   Settings, 
@@ -17,7 +18,19 @@ import {
   Key, 
   AlertTriangle,
   UserCheck,
-  UserX
+  UserX,
+  Send,
+  Bell,
+  RefreshCw,
+  ExternalLink,
+  Lock,
+  Eye,
+  EyeOff,
+  Clock,
+  CheckCircle2,
+  XCircle,
+  HelpCircle,
+  Database
 } from 'lucide-react';
 
 export const SystemSettingsView: React.FC = () => {
@@ -35,18 +48,58 @@ export const SystemSettingsView: React.FC = () => {
     updateUser,
     deleteUser,
     updateUserPermissions,
-    currentUser
+    currentUser,
+    testTelegramConnection,
+    sendTelegramBackupNow
   } = useSchool();
 
-  const [activeTab, setActiveTab] = useState<'branches' | 'users' | 'general' | 'financial' | 'academic'>('branches');
+  const [activeTab, setActiveTab] = useState<'branches' | 'users' | 'general' | 'financial' | 'academic' | 'telegram'>(() => {
+    const saved = localStorage.getItem('fbis_settings_tab');
+    if (saved === 'academic' || saved === 'branches' || saved === 'users' || saved === 'general' || saved === 'financial' || saved === 'telegram') {
+      localStorage.removeItem('fbis_settings_tab');
+      return saved as any;
+    }
+    return 'branches';
+  });
   
   // General form state
   const [schoolNameKhmer, setSchoolNameKhmer] = useState(settings.schoolNameKhmer);
   const [schoolNameEnglish, setSchoolNameEnglish] = useState(settings.schoolNameEnglish);
   const [exchangeRate, setExchangeRate] = useState(settings.defaultExchangeRate);
   const [activeAcademicYear, setActiveAcademicYear] = useState(settings.activeAcademicYear);
+  const [newClassName, setNewClassName] = useState('');
   const [saveToast, setSaveToast] = useState(false);
   const [userToast, setUserToast] = useState<string | null>(null);
+
+  // Telegram Configuration Form State
+  const [telegramBotToken, setTelegramBotToken] = useState(settings.telegramConfig?.botToken || '');
+  const [telegramChatId, setTelegramChatId] = useState(settings.telegramConfig?.chatId || '');
+  const [telegramChannelName, setTelegramChannelName] = useState(settings.telegramConfig?.channelName || '');
+  const [telegramEnabled, setTelegramEnabled] = useState(settings.telegramConfig?.enabled ?? false);
+  const [telegramPaymentAlerts, setTelegramPaymentAlerts] = useState(settings.telegramConfig?.paymentAlerts ?? true);
+  const [telegramAutoBackup, setTelegramAutoBackup] = useState(settings.telegramConfig?.autoDailyBackup ?? true);
+  const [telegramBackupTime, setTelegramBackupTime] = useState(settings.telegramConfig?.dailyBackupTime || '18:00');
+  const [showBotToken, setShowBotToken] = useState(false);
+
+  const [isTestingTelegram, setIsTestingTelegram] = useState(false);
+  const [telegramTestResult, setTelegramTestResult] = useState<{ success: boolean; message: string } | null>(null);
+
+  const [isBackingUpTelegram, setIsBackingUpTelegram] = useState(false);
+  const [telegramBackupResult, setTelegramBackupResult] = useState<{ success: boolean; message: string } | null>(null);
+
+  // In-app Confirmation Modal
+  const [confirmModalData, setConfirmModalData] = useState<{
+    isOpen: boolean;
+    title: string;
+    message: string;
+    itemName?: string;
+    onConfirm: () => void;
+  }>({
+    isOpen: false,
+    title: '',
+    message: '',
+    onConfirm: () => {}
+  });
 
   // Branch modal state
   const [isBranchModalOpen, setIsBranchModalOpen] = useState(false);
@@ -84,6 +137,45 @@ export const SystemSettingsView: React.FC = () => {
     canDeleteRecords: false,
     accessAllBranches: false
   });
+
+  // Edit Grade Level / Class state
+  const [editingGradeLevel, setEditingGradeLevel] = useState<{ original: string; current: string } | null>(null);
+
+  const handleSaveEditGrade = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingGradeLevel) return;
+    const trimmed = editingGradeLevel.current.trim();
+    if (!trimmed) return;
+    if (trimmed !== editingGradeLevel.original) {
+      if (settings.gradeLevels.includes(trimmed)) {
+        setUserToast(`ឈ្មោះថ្នាក់ "${trimmed}" មានរួចហើយក្នុងប្រព័ន្ធ!`);
+        setTimeout(() => setUserToast(null), 3000);
+        return;
+      }
+      updateSettings({
+        gradeLevels: settings.gradeLevels.map(g => g === editingGradeLevel.original ? trimmed : g)
+      });
+      setUserToast(`បានប្តូរឈ្មោះថ្នាក់ "${editingGradeLevel.original}" ទៅជា "${trimmed}" ដោយជោគជ័យ!`);
+      setTimeout(() => setUserToast(null), 3000);
+    }
+    setEditingGradeLevel(null);
+  };
+
+  const handleDeleteGradeLevel = (gl: string) => {
+    setConfirmModalData({
+      isOpen: true,
+      title: 'លុបកម្រិត/ថ្នាក់ (Delete Grade Level / Class)',
+      message: `តើលោកអ្នកពិតជាចង់លុបកម្រិត/ថ្នាក់ "${gl}" ចេញពីបញ្ជីថ្នាក់រៀនមែនទេ? សិស្សដែលស្ថិតក្នុងថ្នាក់នេះនឹងមិនត្រូវបានលុបឡើយ។`,
+      itemName: `Class / Grade: ${gl}`,
+      onConfirm: () => {
+        updateSettings({
+          gradeLevels: settings.gradeLevels.filter(item => item !== gl)
+        });
+        setUserToast(`បានលុបថ្នាក់ "${gl}" ចេញពីបញ្ជី`);
+        setTimeout(() => setUserToast(null), 3000);
+      }
+    });
+  };
 
   const handleSaveGeneral = (e: React.FormEvent) => {
     e.preventDefault();
@@ -124,21 +216,27 @@ export const SystemSettingsView: React.FC = () => {
   };
 
   const handleDeleteBranch = (b: Branch) => {
-    if (b.isHeadquarters) {
-      alert('The Headquarters campus cannot be deleted.');
-      return;
-    }
     if (branches.length <= 1) {
-      alert('The school system must contain at least one branch campus.');
+      setUserToast('សាលាត្រូវមានសាខាដំណើរការយ៉ាងហោចណាស់ ១។ មិនអាចលុបសាខាចុងក្រោយបានទេ។ (Must keep at least 1 branch).');
+      setTimeout(() => setUserToast(null), 3500);
       return;
     }
-    if (confirm(`Are you sure you want to delete branch campus "${b.nameKhmer} (${b.code})"? All historical transactions and data will remain preserved.`)) {
-      const ok = deleteBranch(b.id);
-      if (ok) {
-        setUserToast(`Branch ${b.code} deleted successfully.`);
-        setTimeout(() => setUserToast(null), 3000);
+
+    setConfirmModalData({
+      isOpen: true,
+      title: 'លុបសាខាសាលា (Delete Branch Campus)',
+      message: b.isHeadquarters
+        ? `តើលោកអ្នកពិតជាចង់លុបសាខា "${b.nameKhmer}" (${b.code}) មែនទេ? ដោយសារសាខានេះជាទីស្នាក់ការកណ្តាល (Headquarters) តួនាទីនេះនឹងត្រូវផ្ទេរទៅសាខាបន្ទាប់ដោយស្វ័យប្រវត្តិ។`
+        : `តើលោកអ្នកពិតជាចង់លុបសាខាសាលា "${b.nameKhmer} (${b.code})"? រាល់ទិន្នន័យប្រវត្តិសាស្ត្រត្រូវបានរក្សាទុក។`,
+      itemName: `${b.code} - ${b.nameKhmer} (${b.city})`,
+      onConfirm: () => {
+        const ok = deleteBranch(b.id);
+        if (ok) {
+          setUserToast(`បានលុបសាខា ${b.code} ដោយជោគជ័យ (Branch ${b.code} deleted successfully)`);
+          setTimeout(() => setUserToast(null), 3000);
+        }
       }
-    }
+    });
   };
 
   const handleSaveBranch = (e: React.FormEvent) => {
@@ -241,14 +339,21 @@ export const SystemSettingsView: React.FC = () => {
 
   const handleDeleteUser = (u: User) => {
     if (u.id === currentUser.id) {
-      alert('You cannot delete your own active account.');
+      setUserToast('មិនអាចលុបគណនីដែលកំពុងចូលប្រើប្រាស់បានទេ (Cannot delete your own active account).');
+      setTimeout(() => setUserToast(null), 3000);
       return;
     }
-    if (confirm(`Delete user "${u.name} (@${u.username})"?`)) {
-      deleteUser(u.id);
-      setUserToast(`User ${u.name} deleted.`);
-      setTimeout(() => setUserToast(null), 3000);
-    }
+    setConfirmModalData({
+      isOpen: true,
+      title: 'លុបគណនីបុគ្គលិក (Delete User Account)',
+      message: `តើលោកអ្នកពិតជាចង់លុបគណនី "${u.name}" (@${u.username}) នេះមែនទេ?`,
+      itemName: `${u.name} (@${u.username}) - ${u.email}`,
+      onConfirm: () => {
+        deleteUser(u.id);
+        setUserToast(`User ${u.name} deleted.`);
+        setTimeout(() => setUserToast(null), 3000);
+      }
+    });
   };
 
   const handleOpenPermissions = (u: User) => {
@@ -327,8 +432,25 @@ export const SystemSettingsView: React.FC = () => {
                 : 'border-transparent text-slate-400 hover:text-slate-700'
             }`}
           >
-            <GraduationCap className="w-4 h-4" />
-            <span>Academic Years & Terms</span>
+            <GraduationCap className="w-4 h-4 text-blue-600" />
+            <span>Classes & Academic (ថ្នាក់រៀន & ឆ្នាំសិក្សា) ({settings.gradeLevels.length})</span>
+          </button>
+
+          <button
+            onClick={() => setActiveTab('telegram')}
+            className={`pb-3 text-xs font-bold flex items-center gap-2 border-b-2 transition-colors cursor-pointer ${
+              activeTab === 'telegram'
+                ? 'border-sky-500 text-sky-600'
+                : 'border-transparent text-slate-400 hover:text-slate-700'
+            }`}
+          >
+            <Send className="w-4 h-4 text-sky-500" />
+            <span className="flex items-center gap-1.5">
+              <span>Telegram Alerts & Backup (តេឡេក្រាម)</span>
+              {settings.telegramConfig?.enabled && (
+                <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
+              )}
+            </span>
           </button>
         </div>
       </div>
@@ -399,10 +521,10 @@ export const SystemSettingsView: React.FC = () => {
                       <Edit2 className="w-3.5 h-3.5" />
                     </button>
 
-                    {!b.isHeadquarters && (
+                    {branches.length > 1 && (
                       <button
                         onClick={() => handleDeleteBranch(b)}
-                        className="p-1.5 text-slate-400 hover:text-red-600 rounded hover:bg-red-50 cursor-pointer"
+                        className="p-1.5 text-slate-400 hover:text-red-600 rounded hover:bg-red-50 cursor-pointer transition-colors"
                         title="Delete Branch Campus"
                       >
                         <Trash2 className="w-3.5 h-3.5" />
@@ -682,6 +804,96 @@ export const SystemSettingsView: React.FC = () => {
             </div>
           </div>
 
+          {/* Registered Classes & Grade Levels Management */}
+          <div className="pt-4 border-t border-slate-200 space-y-3">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div>
+                <h4 className="font-bold text-slate-800 text-xs flex items-center gap-1.5 font-khmer">
+                  <GraduationCap className="w-4 h-4 text-blue-600" />
+                  <span>បញ្ជីថ្នាក់ & កម្រិតសិក្សាដែលបានចុះឈ្មោះ (Registered Class & Grade List - {settings.gradeLevels.length} Classes)</span>
+                </h4>
+                <p className="text-[11px] text-slate-500 font-khmer">
+                  ថ្នាក់ទាំងនេះនឹងបង្ហាញក្នុងបញ្ជីជ្រើសរើស (Dropdown) សម្រាប់ពាក្យសុំចូលរៀន ការបង់ប្រាក់ និងការគ្រប់គ្រងសិស្ស។
+                </p>
+              </div>
+
+              {/* Add New Class inline form */}
+              <div className="flex items-center gap-2">
+                <input
+                  type="text"
+                  placeholder="ឈ្មោះថ្នាក់ថ្មី (e.g. ថ្នាក់ទី ៧A)"
+                  value={newClassName}
+                  onChange={(e) => setNewClassName(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      const trimmed = newClassName.trim();
+                      if (trimmed && !settings.gradeLevels.includes(trimmed)) {
+                        updateSettings({
+                          gradeLevels: [...settings.gradeLevels, trimmed]
+                        });
+                        setNewClassName('');
+                        setUserToast(`បានបន្ថែមថ្នាក់ "${trimmed}" ដោយជោគជ័យ!`);
+                        setTimeout(() => setUserToast(null), 3000);
+                      }
+                    }
+                  }}
+                  className="h-8 px-2.5 text-xs border border-slate-300 rounded-md font-khmer focus:ring-1 focus:ring-blue-500"
+                />
+                <button
+                  type="button"
+                  onClick={() => {
+                    const trimmed = newClassName.trim();
+                    if (trimmed && !settings.gradeLevels.includes(trimmed)) {
+                      updateSettings({
+                        gradeLevels: [...settings.gradeLevels, trimmed]
+                      });
+                      setNewClassName('');
+                      setUserToast(`បានបន្ថែមថ្នាក់ "${trimmed}" ដោយជោគជ័យ!`);
+                      setTimeout(() => setUserToast(null), 3000);
+                    }
+                  }}
+                  className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded-md shadow-xs flex items-center gap-1 cursor-pointer transition-colors shrink-0"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  <span>+ បន្ថែមថ្នាក់</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Class Chips List */}
+            <div className="bg-slate-50 border border-slate-200 rounded-xl p-3.5 flex flex-wrap gap-2 max-h-56 overflow-y-auto">
+              {settings.gradeLevels.map((gl) => (
+                <div
+                  key={gl}
+                  className="bg-white border border-slate-300 hover:border-blue-400 rounded-lg px-2.5 py-1 text-xs font-semibold text-slate-800 flex items-center gap-2 shadow-2xs font-khmer group transition-all"
+                >
+                  <span>{gl}</span>
+                  <div className="flex items-center gap-1 opacity-70 group-hover:opacity-100 transition-opacity">
+                    <button
+                      type="button"
+                      onClick={() => setEditingGradeLevel({ original: gl, current: gl })}
+                      className="text-slate-400 hover:text-blue-600 p-0.5 rounded transition-colors cursor-pointer"
+                      title="Edit grade level name (កែប្រែឈ្មោះថ្នាក់)"
+                    >
+                      <Edit2 className="w-3 h-3" />
+                    </button>
+                    {settings.gradeLevels.length > 1 && (
+                      <button
+                        type="button"
+                        onClick={() => handleDeleteGradeLevel(gl)}
+                        className="text-slate-400 hover:text-red-600 p-0.5 rounded transition-colors cursor-pointer"
+                        title="Delete grade level (លុបថ្នាក់)"
+                      >
+                        <Trash2 className="w-3 h-3" />
+                      </button>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
           <div className="pt-3 flex justify-end">
             <button
               type="submit"
@@ -692,6 +904,337 @@ export const SystemSettingsView: React.FC = () => {
             </button>
           </div>
         </form>
+      )}
+
+      {/* Telegram Alerts & Backup Settings Tab */}
+      {activeTab === 'telegram' && (
+        <div className="space-y-4">
+          {/* Header Banner */}
+          <div className="bg-gradient-to-r from-sky-600 via-sky-700 to-blue-800 rounded-xl p-5 text-white shadow-xs">
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+              <div className="flex items-start gap-3.5">
+                <div className="w-12 h-12 rounded-xl bg-white/15 backdrop-blur-xs flex items-center justify-center shrink-0 border border-white/20">
+                  <Send className="w-6 h-6 text-white" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h2 className="text-base font-bold font-khmer">ការតភ្ជាប់ Telegram Bot (Telegram Alerts & Cloud Backup)</h2>
+                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                      telegramEnabled && telegramBotToken && telegramChatId 
+                        ? 'bg-emerald-500 text-white' 
+                        : 'bg-white/20 text-sky-100'
+                    }`}>
+                      {telegramEnabled && telegramBotToken && telegramChatId ? '● សកម្ម (Active)' : '○ មិនទាន់បើក (Inactive)'}
+                    </span>
+                  </div>
+                  <p className="text-xs text-sky-100 mt-1 leading-relaxed">
+                    កំណត់រចនាសម្ព័ន្ធ Telegram Bot សម្រាប់ផ្ញើសារជូនដំណឹងវិក្កយបត្របង់ប្រាក់សិស្ស (Payment Alerts) ដោយស្វ័យប្រវត្តិ 
+                    និងបម្រុងទុកមូលដ្ឋានទិន្នន័យ (Auto Daily Database Backup) ចូលទៅក្នុង Telegram Group/Channel របស់អ្នក។
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2 shrink-0">
+                <button
+                  type="button"
+                  onClick={handleTestTelegram}
+                  disabled={isTestingTelegram || !telegramBotToken || !telegramChatId}
+                  className="px-3.5 py-2 bg-white/15 hover:bg-white/25 text-white text-xs font-semibold rounded-lg border border-white/20 transition-all flex items-center gap-1.5 disabled:opacity-50 cursor-pointer"
+                  title="ផ្ញើសារសាកល្បងទៅកាន់ Telegram"
+                >
+                  <RefreshCw className={`w-3.5 h-3.5 ${isTestingTelegram ? 'animate-spin' : ''}`} />
+                  <span>{isTestingTelegram ? 'កំពុងផ្ញើ...' : 'ផ្ញើសារសាកល្បង (Test)'}</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handleManualTelegramBackup}
+                  disabled={isBackingUpTelegram || !telegramBotToken || !telegramChatId}
+                  className="px-3.5 py-2 bg-emerald-500 hover:bg-emerald-600 text-white text-xs font-bold rounded-lg shadow-xs transition-all flex items-center gap-1.5 disabled:opacity-50 cursor-pointer"
+                  title="ផ្ញើឯកសារ Backup ទៅ Telegram ឥឡូវនេះ"
+                >
+                  <Database className={`w-3.5 h-3.5 ${isBackingUpTelegram ? 'animate-bounce' : ''}`} />
+                  <span>{isBackingUpTelegram ? 'កំពុងផ្ញើ Backup...' : 'Backup ទៅ Telegram ឥឡូវនេះ'}</span>
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {/* Test & Backup Results Banner */}
+          {telegramTestResult && (
+            <div className={`p-3.5 rounded-xl border text-xs flex items-start gap-2.5 transition-all ${
+              telegramTestResult.success 
+                ? 'bg-emerald-50 border-emerald-200 text-emerald-800' 
+                : 'bg-rose-50 border-rose-200 text-rose-800'
+            }`}>
+              {telegramTestResult.success ? (
+                <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
+              ) : (
+                <XCircle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
+              )}
+              <div className="flex-1 font-khmer">
+                <div className="font-bold">{telegramTestResult.success ? 'ជោគជ័យ (Success)' : 'បរាជ័យ (Failed)'}</div>
+                <div>{telegramTestResult.message}</div>
+              </div>
+              <button 
+                type="button" 
+                onClick={() => setTelegramTestResult(null)} 
+                className="text-slate-400 hover:text-slate-600 p-0.5"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          )}
+
+          {telegramBackupResult && (
+            <div className={`p-3.5 rounded-xl border text-xs flex items-start gap-2.5 transition-all ${
+              telegramBackupResult.success 
+                ? 'bg-emerald-50 border-emerald-200 text-emerald-800' 
+                : 'bg-rose-50 border-rose-200 text-rose-800'
+            }`}>
+              {telegramBackupResult.success ? (
+                <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
+              ) : (
+                <XCircle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
+              )}
+              <div className="flex-1 font-khmer">
+                <div className="font-bold">{telegramBackupResult.success ? 'ជោគជ័យ (Success)' : 'បរាជ័យ (Failed)'}</div>
+                <div>{telegramBackupResult.message}</div>
+              </div>
+              <button 
+                type="button" 
+                onClick={() => setTelegramBackupResult(null)} 
+                className="text-slate-400 hover:text-slate-600 p-0.5"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          )}
+
+          {/* Setup Guide Info Box */}
+          <div className="bg-sky-50/70 border border-sky-200 rounded-xl p-4 text-xs">
+            <h3 className="font-bold text-sky-900 flex items-center gap-1.5 mb-2 font-khmer">
+              <HelpCircle className="w-4 h-4 text-sky-600" />
+              <span>ការណែនាំអំពីរបៀបបង្កើត Telegram Bot និងយក Chat ID (Step-by-step Setup Guide)</span>
+            </h3>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-sky-950 font-sans text-[11px] leading-relaxed">
+              <div className="bg-white p-3 rounded-lg border border-sky-100 shadow-2xs">
+                <span className="inline-block px-1.5 py-0.5 bg-sky-100 text-sky-800 font-bold rounded text-[10px] mb-1">
+                  ជំហានទី ១: បង្កើត Bot
+                </span>
+                <p>
+                  បើកកម្មវិធី Telegram ហើយស្វែងរក <b>@BotFather</b> រួចផ្ញើពាក្យ <code>/newbot</code>។ ដាក់ឈ្មោះ Bot និង Username រួចចម្លង <b>API Token</b> (ឧទាហរណ៍: <code>7123456789:AAHxyz...</code>)។
+                </p>
+              </div>
+
+              <div className="bg-white p-3 rounded-lg border border-sky-100 shadow-2xs">
+                <span className="inline-block px-1.5 py-0.5 bg-sky-100 text-sky-800 font-bold rounded text-[10px] mb-1">
+                  ជំហានទី ២: បង្កើត Group/Channel
+                </span>
+                <p>
+                  បង្កើត Telegram Group ឬ Channel ថ្មីសម្រាប់ថ្នាក់គ្រប់គ្រងសាលា (ឧទាហរណ៍: FBIS Finance Alerts) រួចបន្ថែម Bot ដែលបានបង្កើតខាងលើជា <b>Administrator</b>។
+                </p>
+              </div>
+
+              <div className="bg-white p-3 rounded-lg border border-sky-100 shadow-2xs">
+                <span className="inline-block px-1.5 py-0.5 bg-sky-100 text-sky-800 font-bold rounded text-[10px] mb-1">
+                  ជំហានទី ៣: យក Chat ID
+                </span>
+                <p>
+                  បន្ថែម <b>@userinfobot</b> ឬ <b>@RawDataBot</b> ទៅក្នុង Group ដើម្បីមើលលេខសម្គាល់ <b>Chat ID</b> (ឧ. <code>-100234567890</code>) ឬអាចប្រើ Channel Username (ឧ. <code>@fbis_finance</code>)។
+                </p>
+              </div>
+            </div>
+          </div>
+
+          {/* Configuration Form */}
+          <form onSubmit={handleSaveTelegramSettings} className="space-y-4">
+            <div className="bg-white p-5 rounded-xl shadow-xs border border-slate-200 space-y-4 text-xs">
+              <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+                <div>
+                  <h3 className="font-bold text-slate-800 text-sm font-khmer">ព័ត៌មានសម្ងាត់ Bot (Bot API Credentials)</h3>
+                  <p className="text-slate-500 text-[11px]">បញ្ចូល Telegram Bot Token និង Chat ID សម្រាប់ធ្វើការបញ្ជូនទិន្នន័យ</p>
+                </div>
+
+                {/* Master Enable Switch */}
+                <label className="flex items-center gap-2 cursor-pointer select-none">
+                  <span className="font-semibold text-slate-700 font-khmer">បើកដំណើរការ Telegram:</span>
+                  <input
+                    type="checkbox"
+                    checked={telegramEnabled}
+                    onChange={(e) => setTelegramEnabled(e.target.checked)}
+                    className="sr-only peer"
+                  />
+                  <div className="w-11 h-6 bg-slate-300 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-sky-600 relative"></div>
+                </label>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {/* Bot Token */}
+                <div>
+                  <label className="block font-semibold text-slate-700 mb-1">
+                    Telegram Bot Token <span className="text-red-500">*</span>
+                  </label>
+                  <div className="relative">
+                    <input
+                      type={showBotToken ? 'text' : 'password'}
+                      required
+                      value={telegramBotToken}
+                      onChange={(e) => setTelegramBotToken(e.target.value)}
+                      placeholder="e.g. 7123456789:AAHk1_wXYZ..."
+                      className="w-full h-9 pl-3 pr-10 border border-slate-300 rounded-md font-mono text-xs focus:ring-1 focus:ring-sky-500 focus:outline-none"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowBotToken(!showBotToken)}
+                      className="absolute right-2 top-2 text-slate-400 hover:text-slate-600 p-0.5 cursor-pointer"
+                      title={showBotToken ? 'Hide Bot Token' : 'Show Bot Token'}
+                    >
+                      {showBotToken ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    </button>
+                  </div>
+                  <span className="text-[11px] text-slate-400 mt-1 block">
+                    ទទួលបានពី @BotFather ក្នុង Telegram
+                  </span>
+                </div>
+
+                {/* Chat ID / Channel ID */}
+                <div>
+                  <label className="block font-semibold text-slate-700 mb-1">
+                    Telegram Chat ID ឬ Channel Username <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={telegramChatId}
+                    onChange={(e) => setTelegramChatId(e.target.value)}
+                    placeholder="e.g. -1001234567890 ឬ @fbis_finance_channel"
+                    className="w-full h-9 px-3 border border-slate-300 rounded-md font-mono text-xs focus:ring-1 focus:ring-sky-500 focus:outline-none"
+                  />
+                  <span className="text-[11px] text-slate-400 mt-1 block">
+                    លេខសម្គាល់ក្រុម ឬ Channel (លេខអវិជ្ជមានសម្រាប់ក្រុម ឧ. -100...)
+                  </span>
+                </div>
+              </div>
+
+              {/* Channel Friendly Name */}
+              <div>
+                <label className="block font-semibold text-slate-700 mb-1">
+                  ឈ្មោះសម្គាល់ Channel / Group (Friendly Channel Name)
+                </label>
+                <input
+                  type="text"
+                  value={telegramChannelName}
+                  onChange={(e) => setTelegramChannelName(e.target.value)}
+                  placeholder="e.g. FBIS Siem Reap Campus 02 - Finance & Alerts Group"
+                  className="w-full h-9 px-3 border border-slate-300 rounded-md font-khmer text-xs focus:ring-1 focus:ring-sky-500 focus:outline-none"
+                />
+              </div>
+            </div>
+
+            {/* Notification Services & Automation Triggers */}
+            <div className="bg-white p-5 rounded-xl shadow-xs border border-slate-200 space-y-4 text-xs">
+              <h3 className="font-bold text-slate-800 text-sm font-khmer pb-2 border-b border-slate-100 flex items-center gap-2">
+                <Bell className="w-4 h-4 text-sky-600" />
+                <span>មុខងារផ្ញើសារជូនដំណឹងស្វ័យប្រវត្តិ (Automated Notifications & Backup Tasks)</span>
+              </h3>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {/* Real-time Payment Alerts */}
+                <div className="p-4 rounded-xl border border-slate-200 bg-slate-50/60 hover:bg-white transition-all space-y-2">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="flex items-center gap-2.5">
+                      <div className="w-8 h-8 rounded-lg bg-emerald-100 text-emerald-700 flex items-center justify-center shrink-0">
+                        <DollarSign className="w-4 h-4" />
+                      </div>
+                      <div>
+                        <h4 className="font-bold text-slate-900 font-khmer">សារជូនដំណឹងវិក្កយបត្រភ្លាមៗ</h4>
+                        <span className="text-[11px] text-slate-500 font-sans">Real-time Payment Alert</span>
+                      </div>
+                    </div>
+
+                    <input
+                      type="checkbox"
+                      checked={telegramPaymentAlerts}
+                      onChange={(e) => setTelegramPaymentAlerts(e.target.checked)}
+                      className="w-4 h-4 text-sky-600 rounded cursor-pointer"
+                    />
+                  </div>
+
+                  <p className="text-[11px] text-slate-600 font-khmer leading-relaxed">
+                    ផ្ញើសារបង្កាន់ដៃទទួលប្រាក់ផ្លូវការ (Payment Receipt) ភ្លាមៗរាល់ពេលបេឡាធិការកត់ត្រាការបង់ប្រាក់សិស្សក្នុងប្រព័ន្ធ។ 
+                    សារមានបង្ហាញឈ្មោះសិស្ស អត្តលេខ ថ្នាក់ តម្លៃពេញ បញ្ចុះតម្លៃ ទឹកប្រាក់បានបង់ (USD & KHR) និងទឹកប្រាក់នៅសល់ជំពាក់។
+                  </p>
+                </div>
+
+                {/* Auto Daily Backup to Telegram */}
+                <div className="p-4 rounded-xl border border-slate-200 bg-slate-50/60 hover:bg-white transition-all space-y-2">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="flex items-center gap-2.5">
+                      <div className="w-8 h-8 rounded-lg bg-blue-100 text-blue-700 flex items-center justify-center shrink-0">
+                        <Database className="w-4 h-4" />
+                      </div>
+                      <div>
+                        <h4 className="font-bold text-slate-900 font-khmer">ស្វ័យប្រវត្តិបម្រុងទុកទិន្នន័យប្រចាំថ្ងៃ</h4>
+                        <span className="text-[11px] text-slate-500 font-sans">Auto Daily Database Backup</span>
+                      </div>
+                    </div>
+
+                    <input
+                      type="checkbox"
+                      checked={telegramAutoBackup}
+                      onChange={(e) => setTelegramAutoBackup(e.target.checked)}
+                      className="w-4 h-4 text-sky-600 rounded cursor-pointer"
+                    />
+                  </div>
+
+                  <p className="text-[11px] text-slate-600 font-khmer leading-relaxed">
+                    ផ្ញើឯកសារ JSON Backup មូលដ្ឋានទិន្នន័យពេញលេញ និងរបាយការណ៍សង្ខេបប្រចាំថ្ងៃចូលទៅ Telegram Channel ជាស្វ័យប្រវត្តិតាមពេលវេលាកំណត់។
+                  </p>
+
+                  <div className="pt-2 flex items-center justify-between border-t border-slate-200">
+                    <label className="text-[11px] font-semibold text-slate-700 flex items-center gap-1 font-khmer">
+                      <Clock className="w-3.5 h-3.5 text-slate-500" />
+                      <span>ម៉ោងបម្រុងទុកប្រចាំថ្ងៃ:</span>
+                    </label>
+                    <input
+                      type="time"
+                      value={telegramBackupTime}
+                      onChange={(e) => setTelegramBackupTime(e.target.value)}
+                      className="h-8 px-2.5 border border-slate-300 rounded-md font-mono text-xs focus:ring-1 focus:ring-sky-500 focus:outline-none"
+                    />
+                  </div>
+
+                  {settings.telegramConfig?.lastBackupDate && (
+                    <div className="text-[10px] text-slate-500 pt-1">
+                      កាលបរិច្ឆេទ Backup ចុងក្រោយ: <span className="font-mono text-slate-700 font-semibold">{new Date(settings.telegramConfig.lastBackupDate).toLocaleString()}</span>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* Save Buttons Bar */}
+            <div className="pt-2 flex items-center justify-between">
+              <div className="text-[11px] text-slate-500">
+                {telegramEnabled 
+                  ? '✨ ប្រព័ន្ធ Telegram ត្រូវបានបើកដំណើរការសម្រាប់ការផ្ញើសារស្វ័យប្រវត្តិ។'
+                  : 'ℹ️ សូមបើកកុងតាក់ "បើកដំណើរការ Telegram" ខាងលើដើម្បីចាប់ផ្តើមទទួលសារជូនដំណឹង។'
+                }
+              </div>
+
+              <div className="flex items-center gap-2">
+                <button
+                  type="submit"
+                  className="px-6 py-2.5 bg-sky-600 hover:bg-sky-700 text-white font-bold text-xs rounded-lg shadow-xs flex items-center gap-1.5 cursor-pointer transition-colors"
+                >
+                  <Save className="w-4 h-4" />
+                  <span>រក្សាទុកការកំណត់ Telegram (Save Telegram Settings)</span>
+                </button>
+              </div>
+            </div>
+          </form>
+        </div>
       )}
 
       {/* Add / Edit Branch Modal */}
@@ -1093,6 +1636,73 @@ export const SystemSettingsView: React.FC = () => {
           </div>
         </div>
       )}
+
+      {/* Edit Grade Level Modal */}
+      {editingGradeLevel && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs">
+          <div className="bg-white w-full max-w-md rounded-xl shadow-2xl border border-slate-200 overflow-hidden animate-in fade-in zoom-in-95 duration-150">
+            <div className="bg-blue-800 text-white px-5 py-3.5 flex items-center justify-between">
+              <h3 className="text-sm font-bold flex items-center gap-2">
+                <Edit2 className="w-4 h-4 text-blue-200" />
+                <span>កែសម្រួលឈ្មោះកម្រិត/ថ្នាក់ (Edit Grade Level / Class)</span>
+              </h3>
+              <button
+                type="button"
+                onClick={() => setEditingGradeLevel(null)}
+                className="text-blue-200 hover:text-white p-1 rounded hover:bg-blue-700 cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveEditGrade} className="p-5 space-y-4 text-xs">
+              <div>
+                <label className="block font-semibold text-slate-700 mb-1">
+                  ឈ្មោះកម្រិត/ថ្នាក់ (Grade Level / Class Name)
+                </label>
+                <input
+                  type="text"
+                  value={editingGradeLevel.current}
+                  onChange={(e) => setEditingGradeLevel(prev => prev ? { ...prev, current: e.target.value } : null)}
+                  className="w-full h-9 px-3 border border-slate-300 rounded-md font-khmer font-bold text-sm focus:ring-1 focus:ring-blue-500 focus:outline-none"
+                  required
+                  autoFocus
+                />
+                <span className="text-[11px] text-slate-500 mt-1 block">
+                  ឈ្មោះដើម: <span className="font-semibold text-slate-700 font-khmer">{editingGradeLevel.original}</span>
+                </span>
+              </div>
+
+              <div className="pt-2 flex justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => setEditingGradeLevel(null)}
+                  className="px-4 py-2 text-slate-600 hover:text-slate-800 font-medium cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-lg shadow-xs flex items-center gap-1.5 cursor-pointer transition-colors"
+                >
+                  <Save className="w-4 h-4" />
+                  <span>រក្សាទុក (Save Class Name)</span>
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* In-app Confirmation Modal */}
+      <ConfirmModal
+        isOpen={confirmModalData.isOpen}
+        title={confirmModalData.title}
+        message={confirmModalData.message}
+        itemName={confirmModalData.itemName}
+        onConfirm={confirmModalData.onConfirm}
+        onClose={() => setConfirmModalData(prev => ({ ...prev, isOpen: false }))}
+      />
     </div>
   );
 };

@@ -3,6 +3,7 @@ import { useSchool } from '../../context/SchoolContext';
 import { PaymentInvoice } from '../../types';
 import { AddPaymentModal } from './AddPaymentModal';
 import { InvoicePrintModal } from './InvoicePrintModal';
+import { ConfirmModal } from '../common/ConfirmModal';
 import * as XLSX from 'xlsx';
 import { 
   FileSpreadsheet, 
@@ -11,7 +12,11 @@ import {
   Trash2, 
   Search, 
   RotateCcw,
-  ShoppingCart
+  ShoppingCart,
+  Send,
+  CheckCircle2,
+  XCircle,
+  X
 } from 'lucide-react';
 
 export const PaymentsView: React.FC = () => {
@@ -21,7 +26,8 @@ export const PaymentsView: React.FC = () => {
     selectedBranch, 
     settings, 
     setSelectedStudentId, 
-    setActiveTab 
+    setActiveTab,
+    sendTelegramPaymentReceipt
   } = useSchool();
 
   // Filters
@@ -30,9 +36,46 @@ export const PaymentsView: React.FC = () => {
   const [filterTitle, setFilterTitle] = useState('');
   const [filterClass, setFilterClass] = useState('');
   
+  // Telegram status
+  const [sendingTelegramId, setSendingTelegramId] = useState<string | null>(null);
+  const [telegramNotification, setTelegramNotification] = useState<{ success: boolean; msg: string } | null>(null);
+
+  const handleQuickTelegramSend = async (invoiceId: string, invoiceNumber: string) => {
+    setSendingTelegramId(invoiceId);
+    setTelegramNotification(null);
+    const res = await sendTelegramPaymentReceipt(invoiceId);
+    setSendingTelegramId(null);
+    if (res.success) {
+      setTelegramNotification({
+        success: true,
+        msg: `វិក្កយបត្រ #${invoiceNumber} ត្រូវបានផ្ញើទៅកាន់ Telegram ដោយជោគជ័យ!`
+      });
+    } else {
+      setTelegramNotification({
+        success: false,
+        msg: `មិនអាចផ្ញើទៅ Telegram: ${res.error}`
+      });
+    }
+    setTimeout(() => setTelegramNotification(null), 4000);
+  };
+
   // Modals
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [selectedInvoiceForPrint, setSelectedInvoiceForPrint] = useState<PaymentInvoice | null>(null);
+
+  // In-app Confirmation Modal
+  const [confirmModalData, setConfirmModalData] = useState<{
+    isOpen: boolean;
+    title: string;
+    message: string;
+    itemName?: string;
+    onConfirm: () => void;
+  }>({
+    isOpen: false,
+    title: '',
+    message: '',
+    onConfirm: () => {}
+  });
 
   // Pagination
   const [currentPage, setCurrentPage] = useState(1);
@@ -276,12 +319,22 @@ export const PaymentsView: React.FC = () => {
                       <td className="py-2.5 px-3 font-khmer max-w-[200px] truncate" title={p.title}>
                         {p.title}
                       </td>
-                      <td className="py-2.5 px-2 text-center font-mono">
-                        {p.paymentType === 'ត្រីមាសទី១' ? '1' : 
-                         p.paymentType === 'ត្រីមាសទី២' ? '2' : 
-                         p.paymentType === 'ត្រីមាសទី៣' ? '3' : 
-                         p.paymentType === 'ត្រីមាសទី៤' ? '4' : 
-                         p.paymentType === 'ពេញមួយឆ្នាំ' ? '12' : '0'}
+                      <td className="py-2.5 px-2 text-center">
+                        {p.paymentType?.includes('Term 1') || p.paymentType === 'ត្រីមាសទី១' ? (
+                          <span className="bg-purple-100 text-purple-800 font-bold px-1.5 py-0.5 rounded text-[10px] font-mono">T1</span>
+                        ) : p.paymentType?.includes('Term 2') || p.paymentType === 'ត្រីមាសទី២' ? (
+                          <span className="bg-purple-100 text-purple-800 font-bold px-1.5 py-0.5 rounded text-[10px] font-mono">T2</span>
+                        ) : p.paymentType?.includes('Term 3') || p.paymentType === 'ត្រីមាសទី៣' ? (
+                          <span className="bg-purple-100 text-purple-800 font-bold px-1.5 py-0.5 rounded text-[10px] font-mono">T3</span>
+                        ) : p.paymentType?.includes('Term 4') || p.paymentType === 'ត្រីមាសទី៤' ? (
+                          <span className="bg-purple-100 text-purple-800 font-bold px-1.5 py-0.5 rounded text-[10px] font-mono">T4</span>
+                        ) : p.paymentType?.includes('Term') ? (
+                          <span className="bg-purple-100 text-purple-800 font-bold px-1.5 py-0.5 rounded text-[10px] font-mono">Term</span>
+                        ) : p.paymentType?.includes('ពេញមួយឆ្នាំ') || p.paymentType?.includes('Annual') ? (
+                          <span className="bg-blue-100 text-blue-800 font-bold px-1.5 py-0.5 rounded text-[10px] font-mono">12M</span>
+                        ) : (
+                          <span className="text-slate-600 font-mono text-[10px]">{p.paymentType}</span>
+                        )}
                       </td>
                       <td className="py-2.5 px-3 font-mono text-[11px] text-slate-500">{p.issuedDate}</td>
                       <td className="py-2.5 px-3 font-mono text-[11px] text-slate-500">{p.startDate}</td>
@@ -328,9 +381,13 @@ export const PaymentsView: React.FC = () => {
                           {/* Delete */}
                           <button
                             onClick={() => {
-                              if (confirm(`Are you sure you want to delete invoice ${p.invoiceNumber}?`)) {
-                                deletePayment(p.id);
-                              }
+                              setConfirmModalData({
+                                isOpen: true,
+                                title: 'លុបវិក្កយបត្រ (Delete Payment Invoice)',
+                                message: `តើលោកអ្នកពិតជាចង់លុបវិក្កយបត្រលេខ "${p.invoiceNumber}" របស់សិស្ស ${p.studentNameKhmer} នេះមែនទេ?`,
+                                itemName: `Invoice #${p.invoiceNumber} - ${p.title} ($${p.paidUSD.toFixed(2)})`,
+                                onConfirm: () => deletePayment(p.id)
+                              });
                             }}
                             className="p-1 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors cursor-pointer"
                             title="Delete Invoice"
@@ -407,6 +464,16 @@ export const PaymentsView: React.FC = () => {
         branch={selectedBranch}
         settings={settings}
         onClose={() => setSelectedInvoiceForPrint(null)}
+      />
+
+      {/* Confirmation Dialog */}
+      <ConfirmModal
+        isOpen={confirmModalData.isOpen}
+        title={confirmModalData.title}
+        message={confirmModalData.message}
+        itemName={confirmModalData.itemName}
+        onConfirm={confirmModalData.onConfirm}
+        onClose={() => setConfirmModalData(prev => ({ ...prev, isOpen: false }))}
       />
     </div>
   );

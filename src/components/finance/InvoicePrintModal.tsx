@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { PaymentInvoice, Branch, SystemSettings } from '../../types';
 import { Logo } from '../common/Logo';
-import { Printer, X, Copy } from 'lucide-react';
+import { Printer, X, Copy, Send, Check, AlertCircle } from 'lucide-react';
 import { useSchool } from '../../context/SchoolContext';
 
 interface InvoicePrintModalProps {
@@ -17,14 +17,29 @@ export const InvoicePrintModal: React.FC<InvoicePrintModalProps> = ({
   settings,
   onClose
 }) => {
-  const { getStudentById } = useSchool();
+  const { getStudentById, sendTelegramPaymentReceipt } = useSchool();
   const [isDualCopy, setIsDualCopy] = useState(true); // Default to 2 copies side-by-side as shown in user's image
+  const [isSendingTelegram, setIsSendingTelegram] = useState(false);
+  const [telegramToast, setTelegramToast] = useState<{ success: boolean; msg: string } | null>(null);
 
   if (!invoice) return null;
 
   const student = getStudentById(invoice.studentId);
   const handlePrint = () => {
     window.print();
+  };
+
+  const handleSendTelegram = async () => {
+    setIsSendingTelegram(true);
+    setTelegramToast(null);
+    const result = await sendTelegramPaymentReceipt(invoice.id);
+    setIsSendingTelegram(false);
+    if (result.success) {
+      setTelegramToast({ success: true, msg: 'វិក្កយបត្រត្រូវបានផ្ញើទៅកាន់ Telegram រួចរាល់!' });
+    } else {
+      setTelegramToast({ success: false, msg: result.error || 'បរាជ័យក្នុងការផ្ញើ' });
+    }
+    setTimeout(() => setTelegramToast(null), 4000);
   };
 
   // VATTIN digits matching official format: B 1 1 6 - 9 0 2 2 0 2 1 0 0 0
@@ -325,6 +340,17 @@ export const InvoicePrintModal: React.FC<InvoicePrintModalProps> = ({
               <span>{isDualCopy ? '2 Copies (Side-by-Side A4)' : '1 Copy (Single)'}</span>
             </button>
 
+            {/* Send to Telegram Button */}
+            <button
+              onClick={handleSendTelegram}
+              disabled={isSendingTelegram}
+              className="bg-sky-600 hover:bg-sky-500 text-white px-3.5 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 shadow-xs cursor-pointer transition-colors disabled:opacity-50"
+              title="ផ្ញើវិក្កយបត្រនេះទៅកាន់ Telegram Channel"
+            >
+              <Send className={`w-3.5 h-3.5 ${isSendingTelegram ? 'animate-bounce' : ''}`} />
+              <span>{isSendingTelegram ? 'កំពុងផ្ញើ...' : 'Send to Telegram'}</span>
+            </button>
+
             {/* Print Button */}
             <button
               onClick={handlePrint}
@@ -342,6 +368,21 @@ export const InvoicePrintModal: React.FC<InvoicePrintModalProps> = ({
             </button>
           </div>
         </div>
+
+        {/* Telegram Feedback Banner */}
+        {telegramToast && (
+          <div className={`no-print px-5 py-2 text-xs flex items-center justify-between font-khmer ${
+            telegramToast.success ? 'bg-emerald-50 text-emerald-800 border-b border-emerald-200' : 'bg-rose-50 text-rose-800 border-b border-rose-200'
+          }`}>
+            <span className="flex items-center gap-2">
+              {telegramToast.success ? <Check className="w-4 h-4 text-emerald-600" /> : <AlertCircle className="w-4 h-4 text-rose-600" />}
+              <span>{telegramToast.msg}</span>
+            </span>
+            <button onClick={() => setTelegramToast(null)} className="text-slate-400 hover:text-slate-600">
+              <X className="w-3.5 h-3.5" />
+            </button>
+          </div>
+        )}
 
         {/* Invoice Printable View */}
         <div className="bg-white p-2 md:p-4 print:p-0">

@@ -252,6 +252,9 @@ export interface FeeCategory {
   allowDiscount: boolean;
   status: 'active' | 'inactive';
   descriptionKhmer?: string;
+  academicYear?: string; // e.g. "2024-2025", "2025-2026", "2026-2027", or "All Years"
+  classGrade?: string; // e.g. "ថ្នាក់ទី ៧", "Grade 10", "Level 1", "All Classes"
+  programType?: 'all' | 'khmer' | 'english';
 }
 
 export interface ExpenseRecord {
@@ -268,6 +271,17 @@ export interface ExpenseRecord {
   paymentMethod: PaymentMethod;
 }
 
+export interface TelegramConfig {
+  botToken: string;
+  chatId: string;
+  enabled: boolean;
+  paymentAlerts: boolean;
+  autoDailyBackup: boolean;
+  dailyBackupTime: string; // e.g. "18:00"
+  lastBackupDate?: string;
+  channelName?: string;
+}
+
 export interface SystemSettings {
   schoolNameKhmer: string;
   schoolNameEnglish: string;
@@ -282,6 +296,7 @@ export interface SystemSettings {
   currencySymbolUSD: string;
   currencySymbolKHR: string;
   autoBackupEnabled: boolean;
+  telegramConfig?: TelegramConfig;
   backupHistory: Array<{
     id: string;
     timestamp: string;

@@ -247,7 +247,6 @@ export const AdmissionFormModal: React.FC<AdmissionFormModalProps> = ({
       onStudentEnrolled(savedStudent);
     }
 
-    alert(initialStudent ? 'បានកែសម្រួលពាក្យសុំចូលរៀនដោយជោគជ័យ!' : 'បានចុះឈ្មោះសិស្សថ្មីដោយជោគជ័យ!');
     onClose();
   };
 
@@ -534,17 +533,21 @@ export const AdmissionFormModal: React.FC<AdmissionFormModalProps> = ({
                     </div>
                   </label>
 
-                  {/* Level / Grade specify */}
+                  {/* Level / Grade specify - Select from registered class list */}
                   <div className="col-span-2 md:col-span-1">
-                    <span className="font-bold block text-[11px] text-slate-800">កម្រិត/ថ្នាក់</span>
-                    <span className="text-[9px] text-slate-500 font-sans block">Level/Grade (Please Specify)</span>
-                    <input
-                      type="text"
+                    <span className="font-bold block text-[11px] text-slate-800 font-khmer">កម្រិត/ថ្នាក់</span>
+                    <span className="text-[9px] text-slate-500 font-sans block">Class / Grade (ជ្រើសពីបញ្ជី)</span>
+                    <select
                       value={levelGradeSpecify}
                       onChange={(e) => setLevelGradeSpecify(e.target.value)}
-                      placeholder="e.g. Grade 10"
-                      className="w-full mt-1 px-1.5 py-0.5 text-xs border-b border-slate-400 bg-transparent focus:outline-none focus:border-blue-600 font-sans font-bold"
-                    />
+                      className="w-full mt-0.5 px-2 py-1 text-xs border border-slate-300 rounded bg-white font-khmer font-semibold text-slate-800 focus:outline-none focus:border-blue-600 focus:ring-1 focus:ring-blue-500 shadow-2xs"
+                    >
+                      {settings.gradeLevels.map((gl, idx) => (
+                        <option key={idx} value={gl}>
+                          {gl}
+                        </option>
+                      ))}
+                    </select>
                   </div>
                 </div>
               </div>

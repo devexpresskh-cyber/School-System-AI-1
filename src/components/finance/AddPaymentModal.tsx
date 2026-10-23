@@ -23,7 +23,9 @@ export const AddPaymentModal: React.FC<AddPaymentModalProps> = ({
     services,
     selectedBranch,
     settings,
-    branchStudents 
+    branchStudents,
+    feeCategories,
+    getNextInvoiceNumber 
   } = useSchool();
 
   const [selectedStudent, setSelectedStudent] = useState<Student | null>(
@@ -53,16 +55,82 @@ export const AddPaymentModal: React.FC<AddPaymentModalProps> = ({
   const [method, setMethod] = useState<PaymentMethod>('ABA Bank');
   const [status, setStatus] = useState<PaymentStatus>('Partial');
 
-  // Generate invoice number on open
+  // Generate sequential invoice number resetting each year (e.g. 2026-00005)
   useEffect(() => {
     if (isOpen) {
-      const randomNum = Math.floor(1000 + Math.random() * 9000);
-      setInvoiceNumber(`2026-00${randomNum}`);
+      const nextInv = getNextInvoiceNumber(runningYear);
+      setInvoiceNumber(nextInv);
       if (preselectedStudent) {
         setSelectedStudent(preselectedStudent);
       }
     }
-  }, [isOpen, preselectedStudent]);
+  }, [isOpen, preselectedStudent, runningYear, getNextInvoiceNumber]);
+
+  const handleRunningYearChange = (newYear: string) => {
+    setRunningYear(newYear);
+    const nextInv = getNextInvoiceNumber(newYear);
+    setInvoiceNumber(nextInv);
+  };
+
+  const handlePaymentTypeChange = (typeVal: string) => {
+    setPaymentType(typeVal);
+    // Auto-calculate dates for 10-week Term or Semester
+    const baseDate = startDate ? new Date(startDate) : new Date(issuedDate);
+    if (!isNaN(baseDate.getTime())) {
+      if (typeVal.toLowerCase().includes('term') || typeVal.includes('ត្រីមាស')) {
+        const end = new Date(baseDate);
+        end.setDate(baseDate.getDate() + 70); // 10 weeks (1 Term)
+        setEndDate(end.toISOString().split('T')[0]);
+      } else if (typeVal.includes('ឆមាស')) {
+        const end = new Date(baseDate);
+        end.setMonth(baseDate.getMonth() + 5);
+        setEndDate(end.toISOString().split('T')[0]);
+      } else if (typeVal.includes('ប្រចាំខែ')) {
+        const end = new Date(baseDate);
+        end.setMonth(baseDate.getMonth() + 1);
+        setEndDate(end.toISOString().split('T')[0]);
+      } else if (typeVal.includes('ពេញមួយឆ្នាំ')) {
+        const end = new Date(baseDate);
+        end.setFullYear(baseDate.getFullYear() + 1);
+        setEndDate(end.toISOString().split('T')[0]);
+      }
+    }
+  };
+
+  const handleTitleChange = (val: string) => {
+    setTitle(val);
+    // Check fee categories (Account Setting configured by Class & Academic Year)
+    const matchedCategory = feeCategories.find(fc => fc.nameKhmer === val || fc.nameEnglish === val || fc.code === val);
+    if (matchedCategory) {
+      setFullAmount(matchedCategory.defaultAmount);
+      setAmountPaidUSD(matchedCategory.defaultAmount);
+      setAmountReceivedUSD(matchedCategory.defaultAmount);
+      if (matchedCategory.programType === 'english' || val.toLowerCase().includes('english') || val.includes('អង់គ្លេស')) {
+        handlePaymentTypeChange('Term 1 (ត្រីមាសទី១)');
+      }
+      return;
+    }
+
+    // Check if it's a service
+    const matchedService = services.find(s => s.nameKhmer === val || s.nameEnglish === val || s.code === val);
+    if (matchedService) {
+      setFullAmount(matchedService.feeUSD);
+      setAmountPaidUSD(matchedService.feeUSD);
+      setAmountReceivedUSD(matchedService.feeUSD);
+      if (matchedService.nameEnglish.toLowerCase().includes('english') || matchedService.nameKhmer.includes('អង់គ្លេស')) {
+        handlePaymentTypeChange('Term 1 (ត្រីមាសទី១)');
+      }
+      return;
+    }
+    // Check if it's a product
+    const matched = products.find(p => p.nameKhmer === val || p.nameEnglish === val || p.code === val);
+    if (matched && matched.unitPrice > 0) {
+      setFullAmount(matched.unitPrice);
+      setAmountPaidUSD(matched.unitPrice);
+      setAmountReceivedUSD(matched.unitPrice);
+      setPaymentType('ផលិតផល');
+    }
+  };
 
   // Calculations
   const calculatedPayable = Math.max(0, fullAmount * (1 - discountPercent / 100) - promotionAmount);
@@ -86,25 +154,6 @@ export const AddPaymentModal: React.FC<AddPaymentModalProps> = ({
   }, [owedRemain, totalPaidEquivalentUSD]);
 
   if (!isOpen) return null;
-
-  const handleTitleChange = (val: string) => {
-    setTitle(val);
-    // Check if it's a service
-    const matchedService = services.find(s => s.nameKhmer === val || s.nameEnglish === val || s.code === val);
-    if (matchedService) {
-      setFullAmount(matchedService.feeUSD);
-      setAmountPaidUSD(matchedService.feeUSD);
-      setAmountReceivedUSD(matchedService.feeUSD);
-      return;
-    }
-    // Check if it's a product
-    const matched = products.find(p => p.nameKhmer === val || p.nameEnglish === val || p.code === val);
-    if (matched && matched.unitPrice > 0) {
-      setFullAmount(matched.unitPrice);
-      setAmountPaidUSD(matched.unitPrice);
-      setAmountReceivedUSD(matched.unitPrice);
-    }
-  };
 
   const handleSave = (e: React.FormEvent) => {
     e.preventDefault();
@@ -252,12 +301,19 @@ export const AddPaymentModal: React.FC<AddPaymentModalProps> = ({
               </div>
 
               <div>
-                <label className="block text-xs font-medium text-slate-600 mb-1">Fee Item (Service / Product)</label>
+                <label className="block text-xs font-medium text-slate-600 mb-1">Fee Item (Service / Product / Category)</label>
                 <select
                   value={title}
                   onChange={(e) => handleTitleChange(e.target.value)}
                   className="w-full h-9 px-3 text-xs border border-slate-300 rounded-md focus:ring-1 focus:ring-blue-500 focus:outline-none font-khmer bg-white"
                 >
+                  <optgroup label="📋 ប្រភេទចំណូលតាមថ្នាក់ & ឆ្នាំសិក្សា (Fee Categories)">
+                    {feeCategories.map(fc => (
+                      <option key={fc.id} value={fc.nameKhmer}>
+                        {fc.code} - {fc.nameKhmer} (${fc.defaultAmount} {fc.programType ? `· ${fc.programType === 'english' ? 'English' : fc.programType === 'khmer' ? 'Khmer' : 'All'}` : ''} {fc.classGrade ? `· ${fc.classGrade}` : ''})
+                      </option>
+                    ))}
+                  </optgroup>
                   <optgroup label="🎓 សេវាកម្ម & ថ្លៃសិក្សា (School Services & Fees)">
                     {services.map(s => (
                       <option key={s.id} value={s.nameKhmer}>
@@ -289,11 +345,13 @@ export const AddPaymentModal: React.FC<AddPaymentModalProps> = ({
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div>
-                <label className="block text-xs font-medium text-slate-600 mb-1">Running Year</label>
+                <label className="block text-xs font-medium text-slate-600 mb-1">
+                  Running Year <span className="text-[10px] text-blue-600 font-normal">(Invoice # counts from 1 each year)</span>
+                </label>
                 <select
                   value={runningYear}
-                  onChange={(e) => setRunningYear(e.target.value)}
-                  className="w-full h-9 px-3 text-xs border border-slate-300 rounded-md focus:ring-1 focus:ring-blue-500 focus:outline-none"
+                  onChange={(e) => handleRunningYearChange(e.target.value)}
+                  className="w-full h-9 px-3 text-xs border border-slate-300 rounded-md focus:ring-1 focus:ring-blue-500 focus:outline-none font-medium"
                 >
                   <option value="2026">2026</option>
                   <option value="2025">2025</option>
@@ -303,20 +361,30 @@ export const AddPaymentModal: React.FC<AddPaymentModalProps> = ({
               </div>
 
               <div>
-                <label className="block text-xs font-medium text-slate-600 mb-1">Payment Type</label>
+                <label className="block text-xs font-medium text-slate-600 mb-1">Payment Type (វដ្តបង់ប្រាក់ / Term)</label>
                 <select
                   value={paymentType}
-                  onChange={(e) => setPaymentType(e.target.value)}
-                  className="w-full h-9 px-3 text-xs border border-slate-300 rounded-md focus:ring-1 focus:ring-blue-500 focus:outline-none font-khmer"
+                  onChange={(e) => handlePaymentTypeChange(e.target.value)}
+                  className="w-full h-9 px-3 text-xs border border-slate-300 rounded-md focus:ring-1 focus:ring-blue-500 focus:outline-none font-khmer bg-white"
                 >
-                  <option value="ត្រីមាសទី១">ត្រីមាសទី១ (Term 1)</option>
-                  <option value="ត្រីមាសទី២">ត្រីមាសទី២ (Term 2)</option>
-                  <option value="ត្រីមាសទី៣">ត្រីមាសទី៣ (Term 3)</option>
-                  <option value="ត្រីមាសទី៤">ត្រីមាសទី៤ (Term 4)</option>
-                  <option value="ឆមាសទី១">ឆមាសទី១ (Semester 1)</option>
-                  <option value="ឆមាសទី២">ឆមាសទី២ (Semester 2)</option>
-                  <option value="ពេញមួយឆ្នាំ">ពេញមួយឆ្នាំ (Annual)</option>
-                  <option value="ផលិតផល">ផលិតផល / សម្ភារៈ (Product)</option>
+                  <optgroup label="🇬🇧 កម្មវិធីភាសាអង់គ្លេស (English Program Term - 10 Weeks)">
+                    <option value="Term 1 (ត្រីមាសទី១)">Term 1 (ត្រីមាសទី១ - 10 Weeks)</option>
+                    <option value="Term 2 (ត្រីមាសទី២)">Term 2 (ត្រីមាសទី២ - 10 Weeks)</option>
+                    <option value="Term 3 (ត្រីមាសទី៣)">Term 3 (ត្រីមាសទី៣ - 10 Weeks)</option>
+                    <option value="Term 4 (ត្រីមាសទី៤)">Term 4 (ត្រីមាសទី៤ - 10 Weeks)</option>
+                    <option value="Term (បង់ជា Term)">Term (បង់ជា Term / 10 សប្តាហ៍)</option>
+                  </optgroup>
+                  <optgroup label="🇰🇭 កម្មវិធីចំណេះទូទៅ & វដ្តទូទៅ (Khmer General & Other Cycles)">
+                    <option value="ឆមាសទី១">ឆមាសទី១ (Semester 1)</option>
+                    <option value="ឆមាសទី២">ឆមាសទី២ (Semester 2)</option>
+                    <option value="ត្រីមាសទី១">ត្រីមាសទី១ (Quarter 1)</option>
+                    <option value="ត្រីមាសទី២">ត្រីមាសទី២ (Quarter 2)</option>
+                    <option value="ត្រីមាសទី៣">ត្រីមាសទី៣ (Quarter 3)</option>
+                    <option value="ត្រីមាសទី៤">ត្រីមាសទី៤ (Quarter 4)</option>
+                    <option value="ប្រចាំខែ">ប្រចាំខែ (Monthly)</option>
+                    <option value="ពេញមួយឆ្នាំ">ពេញមួយឆ្នាំ (Annual)</option>
+                    <option value="ផលិតផល">ផលិតផល / សម្ភារៈ (Product)</option>
+                  </optgroup>
                 </select>
               </div>
 

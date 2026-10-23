@@ -31,6 +31,7 @@ import {
   BadgeCheck,
   CheckCircle2
 } from 'lucide-react';
+import { ConfirmModal } from '../common/ConfirmModal';
 import * as XLSX from 'xlsx';
 
 export const ProductInventoryView: React.FC = () => {
@@ -87,7 +88,21 @@ export const ProductInventoryView: React.FC = () => {
   // Print Stock Report Modal
   const [isPrintStockReportOpen, setIsPrintStockReportOpen] = useState(false);
 
-  // Fee Category (ប្រភេទចំណូល) Modal
+  // In-app Confirmation Modal
+  const [confirmModalData, setConfirmModalData] = useState<{
+    isOpen: boolean;
+    title: string;
+    message: string;
+    itemName?: string;
+    onConfirm: () => void;
+  }>({
+    isOpen: false,
+    title: '',
+    message: '',
+    onConfirm: () => {}
+  });
+
+  // Fee Category (ប្រភេទចំណូល) Modal & Configuration
   const [isFeeCategoryModalOpen, setIsFeeCategoryModalOpen] = useState(false);
   const [editingFeeCategory, setEditingFeeCategory] = useState<FeeCategory | null>(null);
   const [catCode, setCatCode] = useState('');
@@ -96,8 +111,17 @@ export const ProductInventoryView: React.FC = () => {
   const [catType, setCatType] = useState<FeeCategory['categoryType']>('tuition');
   const [catDefaultAmount, setCatDefaultAmount] = useState<number>(200);
   const [catGrades, setCatGrades] = useState('All Grades (Pre-K to Grade 12)');
+  const [catAcademicYear, setCatAcademicYear] = useState<string>(settings.activeAcademicYear || '2025-2026');
+  const [catClassGrade, setCatClassGrade] = useState<string>('All Classes (គ្រប់ថ្នាក់)');
+  const [catProgramType, setCatProgramType] = useState<'all' | 'khmer' | 'english'>('all');
+  const [catBillingCycle, setCatBillingCycle] = useState<string>('Term');
   const [catAllowDiscount, setCatAllowDiscount] = useState(true);
   const [catStatus, setCatStatus] = useState<'active' | 'inactive'>('active');
+
+  // Filter states for Account Setting
+  const [accountYearFilter, setAccountYearFilter] = useState<string>('All');
+  const [accountClassFilter, setAccountClassFilter] = useState<string>('All');
+  const [accountProgramFilter, setAccountProgramFilter] = useState<string>('All');
 
   // Product Form State (Physical Items)
   const [productCode, setProductCode] = useState('');
@@ -133,11 +157,31 @@ export const ProductInventoryView: React.FC = () => {
     return matchSearch && matchCategory;
   });
 
-  const filteredFeeCategories = feeCategories.filter(c =>
-    c.nameKhmer.toLowerCase().includes(searchFilter.toLowerCase()) ||
-    c.nameEnglish.toLowerCase().includes(searchFilter.toLowerCase()) ||
-    c.code.toLowerCase().includes(searchFilter.toLowerCase())
-  );
+  const filteredFeeCategories = feeCategories.filter(c => {
+    const matchSearch = c.nameKhmer.toLowerCase().includes(searchFilter.toLowerCase()) ||
+      c.nameEnglish.toLowerCase().includes(searchFilter.toLowerCase()) ||
+      c.code.toLowerCase().includes(searchFilter.toLowerCase());
+
+    const matchYear = accountYearFilter === 'All' || 
+      !c.academicYear || 
+      c.academicYear === 'All Years' || 
+      c.academicYear === 'គ្រប់ឆ្នាំសិក្សា' || 
+      c.academicYear === accountYearFilter;
+
+    const matchClass = accountClassFilter === 'All' || 
+      !c.classGrade || 
+      c.classGrade.includes('All') || 
+      c.classGrade.includes('គ្រប់ថ្នាក់') || 
+      c.classGrade === accountClassFilter || 
+      (c.applicableGrades && c.applicableGrades.includes(accountClassFilter));
+
+    const matchProgram = accountProgramFilter === 'All' || 
+      !c.programType || 
+      c.programType === 'all' || 
+      c.programType === accountProgramFilter;
+
+    return matchSearch && matchYear && matchClass && matchProgram;
+  });
 
   // Stock summary metrics
   const totalStockUnits = branchProducts.reduce((sum, p) => sum + p.balance, 0);
@@ -313,8 +357,12 @@ export const ProductInventoryView: React.FC = () => {
     setCatNameKhmer('');
     setCatNameEnglish('');
     setCatType('tuition');
-    setCatDefaultAmount(200);
-    setCatGrades('All Grades (Pre-K to Grade 12)');
+    setCatDefaultAmount(150);
+    setCatGrades('All Classes (គ្រប់ថ្នាក់)');
+    setCatAcademicYear(settings.activeAcademicYear || '2025-2026');
+    setCatClassGrade('All Classes (គ្រប់ថ្នាក់)');
+    setCatProgramType('khmer');
+    setCatBillingCycle('Term');
     setCatAllowDiscount(true);
     setCatStatus('active');
     setIsFeeCategoryModalOpen(true);
@@ -328,6 +376,10 @@ export const ProductInventoryView: React.FC = () => {
     setCatType(fc.categoryType);
     setCatDefaultAmount(fc.defaultAmount);
     setCatGrades(fc.applicableGrades.join(', '));
+    setCatAcademicYear(fc.academicYear || settings.activeAcademicYear || '2025-2026');
+    setCatClassGrade(fc.classGrade || 'All Classes (គ្រប់ថ្នាក់)');
+    setCatProgramType(fc.programType || 'all');
+    setCatBillingCycle(fc.termOptions?.includes('Term') || fc.termOptions?.some(t => t.includes('Term')) ? 'Term' : 'Monthly');
     setCatAllowDiscount(fc.allowDiscount);
     setCatStatus(fc.status);
     setIsFeeCategoryModalOpen(true);
@@ -335,7 +387,10 @@ export const ProductInventoryView: React.FC = () => {
 
   const handleSaveFeeCategory = (e: React.FormEvent) => {
     e.preventDefault();
-    const gradeArr = catGrades.split(',').map(s => s.trim()).filter(Boolean);
+    const gradeArr = catClassGrade !== 'All Classes (គ្រប់ថ្នាក់)' ? [catClassGrade] : ['All Classes (គ្រប់ថ្នាក់)'];
+    const termOpts = catProgramType === 'english' || catBillingCycle === 'Term'
+      ? ['Term 1 (ត្រីមាសទី១)', 'Term 2 (ត្រីមាសទី២)', 'Term 3 (ត្រីមាសទី៣)', 'Term 4 (ត្រីមាសទី៤)', 'Term (បង់ជា Term)', 'ប្រចាំឆមាស', 'ប្រចាំឆ្នាំ']
+      : ['ត្រីមាសទី១', 'ត្រីមាសទី២', 'ត្រីមាសទី៣', 'ត្រីមាសទី៤', 'ឆមាសទី១', 'ឆមាសទី២', 'ពេញមួយឆ្នាំ'];
 
     if (editingFeeCategory) {
       updateFeeCategory(editingFeeCategory.id, {
@@ -344,7 +399,11 @@ export const ProductInventoryView: React.FC = () => {
         nameEnglish: catNameEnglish,
         categoryType: catType,
         defaultAmount: catDefaultAmount,
-        applicableGrades: gradeArr.length > 0 ? gradeArr : ['All Grades'],
+        academicYear: catAcademicYear,
+        classGrade: catClassGrade,
+        programType: catProgramType,
+        applicableGrades: gradeArr,
+        termOptions: termOpts,
         allowDiscount: catAllowDiscount,
         status: catStatus
       });
@@ -355,8 +414,11 @@ export const ProductInventoryView: React.FC = () => {
         nameEnglish: catNameEnglish,
         categoryType: catType,
         defaultAmount: catDefaultAmount,
-        termOptions: ['Term 1', 'Term 2', 'Full Year'],
-        applicableGrades: gradeArr.length > 0 ? gradeArr : ['All Grades'],
+        academicYear: catAcademicYear,
+        classGrade: catClassGrade,
+        programType: catProgramType,
+        termOptions: termOpts,
+        applicableGrades: gradeArr,
         allowDiscount: catAllowDiscount,
         status: catStatus
       });
@@ -653,9 +715,13 @@ export const ProductInventoryView: React.FC = () => {
                         </button>
                         <button
                           onClick={() => {
-                            if (confirm(`Delete product "${item.nameKhmer}"?`)) {
-                              deleteProduct(item.id);
-                            }
+                            setConfirmModalData({
+                              isOpen: true,
+                              title: 'លុបទំនិញ (Delete Product)',
+                              message: `តើលោកអ្នកពិតជាចង់លុបទំនិញ "${item.nameKhmer}" (${item.code}) នេះចេញពីស្តុកមែនទេ?`,
+                              itemName: `${item.code} - ${item.nameKhmer} (${item.category})`,
+                              onConfirm: () => deleteProduct(item.id)
+                            });
                           }}
                           className="text-slate-400 hover:text-red-600 transition-colors p-1 cursor-pointer"
                           title="Delete Product"
@@ -856,9 +922,13 @@ export const ProductInventoryView: React.FC = () => {
                           </button>
                           <button
                             onClick={() => {
-                              if (confirm(`Delete service "${svc.nameKhmer}"?`)) {
-                                deleteService(svc.id);
-                              }
+                              setConfirmModalData({
+                               isOpen: true,
+                               title: 'លុបសេវាកម្ម (Delete Service)',
+                               message: `តើលោកអ្នកពិតជាចង់លុបសេវាកម្ម "${svc.nameKhmer}" (${svc.code}) នេះមែនទេ?`,
+                               itemName: `${svc.code} - ${svc.nameKhmer} ($${svc.feeUSD} / ${svc.billingCycle})`,
+                               onConfirm: () => deleteService(svc.id)
+                              });
                             }}
                             className="text-slate-400 hover:text-red-600 transition-colors p-1 cursor-pointer"
                             title="Delete Service"
@@ -1102,15 +1172,15 @@ export const ProductInventoryView: React.FC = () => {
       {activeTab === 'ACCOUNT SETTING' && (
         <div className="space-y-5">
           {/* Header Card */}
-          <div className="bg-white rounded-xl shadow-xs border border-slate-200 p-5">
-            <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
+          <div className="bg-white rounded-xl shadow-xs border border-slate-200 p-5 space-y-4">
+            <div className="flex flex-wrap items-center justify-between gap-3">
               <div>
                 <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
                   <Tag className="w-4 h-4 text-blue-600" />
                   <span>ការកំណត់ប្រភេទចំណូលសាលារៀន (Revenue & Fee Categories Setup)</span>
                 </h3>
-                <p className="text-xs text-slate-500 mt-0.5">
-                  Configure official revenue accounts, default rates, and tuition structures across school branches.
+                <p className="text-xs text-slate-500 mt-0.5 font-khmer">
+                  កំណត់ឈ្មោះប្រភេទចំណូលតាមថ្នាក់ និងតាមឆ្នាំសិក្សា (Configured by Class & Academic Year) រួមទាំងការបង់ជា Term សម្រាប់កម្មវិធីភាសាអង់គ្លេស។
                 </p>
               </div>
 
@@ -1123,78 +1193,168 @@ export const ProductInventoryView: React.FC = () => {
               </button>
             </div>
 
+            {/* Filter Bar: Academic Year, Class, Program */}
+            <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl flex flex-wrap items-center justify-between gap-3 text-xs">
+              <div className="flex flex-wrap items-center gap-3">
+                {/* Year Filter */}
+                <div className="flex items-center gap-1.5">
+                  <span className="font-bold text-slate-600 font-khmer">ឆ្នាំសិក្សា:</span>
+                  <select
+                    value={accountYearFilter}
+                    onChange={(e) => setAccountYearFilter(e.target.value)}
+                    className="h-8 px-2.5 border border-slate-300 rounded-md bg-white font-mono font-semibold"
+                  >
+                    <option value="All">គ្រប់ឆ្នាំ (All Academic Years)</option>
+                    {settings.academicYears.map(yr => (
+                      <option key={yr} value={yr}>{yr}</option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Class Filter */}
+                <div className="flex items-center gap-1.5">
+                  <span className="font-bold text-slate-600 font-khmer">កម្រិត/ថ្នាក់:</span>
+                  <select
+                    value={accountClassFilter}
+                    onChange={(e) => setAccountClassFilter(e.target.value)}
+                    className="h-8 px-2.5 border border-slate-300 rounded-md bg-white font-khmer font-semibold max-w-[200px]"
+                  >
+                    <option value="All">គ្រប់កម្រិតថ្នាក់ (All Classes)</option>
+                    {settings.gradeLevels.map(gl => (
+                      <option key={gl} value={gl}>{gl}</option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Program Filter */}
+                <div className="flex items-center gap-1.5">
+                  <span className="font-bold text-slate-600 font-khmer">កម្មវិធី:</span>
+                  <select
+                    value={accountProgramFilter}
+                    onChange={(e) => setAccountProgramFilter(e.target.value)}
+                    className="h-8 px-2.5 border border-slate-300 rounded-md bg-white font-khmer font-semibold"
+                  >
+                    <option value="All">គ្រប់កម្មវិធី (All Programs)</option>
+                    <option value="khmer">កម្មវិធីភាសាខ្មែរ (Khmer)</option>
+                    <option value="english">កម្មវិធីភាសាអង់គ្លេស (English)</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="text-slate-500 font-medium">
+                បង្ហាញ: <span className="font-bold text-blue-700">{filteredFeeCategories.length}</span> ប្រភេទចំណូល
+              </div>
+            </div>
+
             {/* Fee Categories Table */}
             <div className="border border-slate-200 rounded-xl overflow-hidden overflow-x-auto">
               <table className="w-full text-xs text-left">
                 <thead className="bg-slate-50 text-slate-700 font-bold border-b border-slate-200">
                   <tr>
                     <th className="py-3 px-3">Code</th>
-                    <th className="py-3 px-4">ឈ្មោះប្រភេទចំណូល (Khmer & English)</th>
-                    <th className="py-3 px-3">Category Type</th>
-                    <th className="py-3 px-3 text-right">Default Amount</th>
-                    <th className="py-3 px-3">Applicable Grades</th>
-                    <th className="py-3 px-3 text-center">Discount Allowed</th>
+                    <th className="py-3 px-4">ឈ្មោះប្រភេទចំណូល (Income Type Name)</th>
+                    <th className="py-3 px-3">ឆ្នាំសិក្សា</th>
+                    <th className="py-3 px-3">កម្រិត/ថ្នាក់</th>
+                    <th className="py-3 px-3">កម្មវិធី</th>
+                    <th className="py-3 px-3 text-right">តម្លៃកំណត់ ($)</th>
+                    <th className="py-3 px-3">វដ្តនៃការបង់</th>
                     <th className="py-3 px-3 text-center">Status</th>
                     <th className="py-3 px-3 text-center">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
-                  {filteredFeeCategories.map((cat) => (
-                    <tr key={cat.id} className="hover:bg-slate-50 transition-colors">
-                      <td className="py-3 px-3 font-mono font-bold text-blue-700">{cat.code}</td>
-                      <td className="py-3 px-4">
-                        <div className="font-khmer font-bold text-slate-900 text-sm">{cat.nameKhmer}</div>
-                        <div className="text-[11px] text-slate-500">{cat.nameEnglish}</div>
-                      </td>
-                      <td className="py-3 px-3">
-                        <span className="bg-blue-50 text-blue-700 uppercase tracking-wide text-[10px] font-bold px-2 py-0.5 rounded">
-                          {cat.categoryType}
-                        </span>
-                      </td>
-                      <td className="py-3 px-3 text-right font-mono font-bold text-slate-900 text-sm">
-                        ${cat.defaultAmount.toFixed(2)}
-                      </td>
-                      <td className="py-3 px-3 text-slate-600 font-khmer">
-                        {cat.applicableGrades.join(', ')}
-                      </td>
-                      <td className="py-3 px-3 text-center">
-                        {cat.allowDiscount ? (
-                          <span className="text-emerald-700 font-bold font-khmer">អនុញ្ញាត (Yes)</span>
-                        ) : (
-                          <span className="text-slate-400 font-khmer">អត់ (No)</span>
-                        )}
-                      </td>
-                      <td className="py-3 px-3 text-center">
-                        <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
-                          cat.status === 'active' ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-100 text-slate-600'
-                        }`}>
-                          {cat.status === 'active' ? 'Active' : 'Inactive'}
-                        </span>
-                      </td>
-                      <td className="py-3 px-3 text-center">
-                        <div className="flex items-center justify-center gap-1.5">
-                          <button
-                            onClick={() => handleOpenEditCategory(cat)}
-                            className="p-1.5 text-slate-400 hover:text-blue-600 rounded hover:bg-slate-100 cursor-pointer"
-                            title="Edit Category"
-                          >
-                            <Edit2 className="w-3.5 h-3.5" />
-                          </button>
-                          <button
-                            onClick={() => {
-                              if (confirm(`Delete fee category "${cat.nameKhmer}"?`)) {
-                                deleteFeeCategory(cat.id);
-                              }
-                            }}
-                            className="p-1.5 text-slate-400 hover:text-red-600 rounded hover:bg-red-50 cursor-pointer"
-                            title="Delete Category"
-                          >
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </button>
-                        </div>
+                  {filteredFeeCategories.length === 0 ? (
+                    <tr>
+                      <td colSpan={9} className="py-8 text-center text-slate-400 font-khmer">
+                        ពុំមានប្រភេទចំណូលត្រូវតាមលក្ខខណ្ឌស្វែងរកឡើយ (No categories match this filter).
                       </td>
                     </tr>
-                  ))}
+                  ) : (
+                    filteredFeeCategories.map((cat) => {
+                      const isEnglish = cat.programType === 'english' || cat.nameKhmer.includes('អង់គ្លេស') || cat.nameEnglish.toLowerCase().includes('english');
+                      const hasTermPayment = cat.termOptions?.some(t => t.toLowerCase().includes('term'));
+
+                      return (
+                        <tr key={cat.id} className="hover:bg-slate-50 transition-colors">
+                          <td className="py-3 px-3 font-mono font-bold text-blue-700">{cat.code}</td>
+                          <td className="py-3 px-4">
+                            <div className="font-khmer font-bold text-slate-900 text-sm">{cat.nameKhmer}</div>
+                            <div className="text-[11px] text-slate-500">{cat.nameEnglish}</div>
+                          </td>
+                          <td className="py-3 px-3 font-mono font-bold text-slate-700">
+                            {cat.academicYear || settings.activeAcademicYear}
+                          </td>
+                          <td className="py-3 px-3 font-khmer">
+                            <span className="bg-blue-50 text-blue-800 font-semibold px-2 py-0.5 rounded text-[11px]">
+                              {cat.classGrade || (cat.applicableGrades && cat.applicableGrades[0]) || 'All Classes'}
+                            </span>
+                          </td>
+                          <td className="py-3 px-3 font-khmer">
+                            {isEnglish ? (
+                              <span className="bg-purple-100 text-purple-800 font-bold px-2 py-0.5 rounded text-[10px]">
+                                អង់គ្លេស (English)
+                              </span>
+                            ) : cat.programType === 'khmer' ? (
+                              <span className="bg-blue-100 text-blue-800 font-bold px-2 py-0.5 rounded text-[10px]">
+                                ខ្មែរ (Khmer)
+                              </span>
+                            ) : (
+                              <span className="bg-slate-100 text-slate-700 font-bold px-2 py-0.5 rounded text-[10px]">
+                                ទូទៅ (All)
+                              </span>
+                            )}
+                          </td>
+                          <td className="py-3 px-3 text-right font-mono font-bold text-slate-900 text-sm">
+                            ${cat.defaultAmount.toFixed(2)}
+                          </td>
+                          <td className="py-3 px-3 font-khmer">
+                            {hasTermPayment ? (
+                              <span className="bg-emerald-100 text-emerald-800 font-bold px-2 py-0.5 rounded text-[11px]">
+                                បង់ជា Term (ត្រីមាស)
+                              </span>
+                            ) : (
+                              <span className="text-slate-600 text-[11px]">
+                                {cat.termOptions?.slice(0, 2).join(', ') || 'Monthly / Semester'}
+                              </span>
+                            )}
+                          </td>
+                          <td className="py-3 px-3 text-center">
+                            <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                              cat.status === 'active' ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-100 text-slate-600'
+                            }`}>
+                              {cat.status === 'active' ? 'Active' : 'Inactive'}
+                            </span>
+                          </td>
+                          <td className="py-3 px-3 text-center">
+                            <div className="flex items-center justify-center gap-1.5">
+                              <button
+                                onClick={() => handleOpenEditCategory(cat)}
+                                className="p-1.5 text-slate-400 hover:text-blue-600 rounded hover:bg-slate-100 cursor-pointer"
+                                title="Edit Category"
+                              >
+                                <Edit2 className="w-3.5 h-3.5" />
+                              </button>
+                              <button
+                                onClick={() => {
+                                  setConfirmModalData({
+                                    isOpen: true,
+                                    title: 'លុបប្រភេទចំណូល (Delete Revenue Category)',
+                                    message: `តើលោកអ្នកពិតជាចង់លុបប្រភេទចំណូល "${cat.nameKhmer}" (${cat.code}) នេះមែនទេ?`,
+                                    itemName: `${cat.code} - ${cat.nameKhmer} ($${cat.defaultAmount.toFixed(2)})`,
+                                    onConfirm: () => deleteFeeCategory(cat.id)
+                                  });
+                                }}
+                                className="p-1.5 text-slate-400 hover:text-red-600 rounded hover:bg-red-50 cursor-pointer"
+                                title="Delete Category"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })
+                  )}
                 </tbody>
               </table>
             </div>
@@ -1711,6 +1871,73 @@ export const ProductInventoryView: React.FC = () => {
                 />
               </div>
 
+              {/* Academic Year and Class Selection (កំណត់តាមថ្នាក់ និងតាមឆ្នាំសិក្សា) */}
+              <div className="grid grid-cols-2 gap-3 bg-slate-50 p-3 rounded-lg border border-slate-200">
+                <div>
+                  <label className="block font-semibold text-slate-700 mb-1">
+                    ឆ្នាំសិក្សា (Academic Year)
+                  </label>
+                  <select
+                    value={catAcademicYear}
+                    onChange={(e) => setCatAcademicYear(e.target.value)}
+                    className="w-full h-9 px-2.5 border border-slate-300 rounded-md bg-white font-mono font-semibold"
+                  >
+                    <option value="All Years">គ្រប់ឆ្នាំ (All Academic Years)</option>
+                    {settings.academicYears.map(yr => (
+                      <option key={yr} value={yr}>{yr}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block font-semibold text-slate-700 mb-1">
+                    កម្រិត/ថ្នាក់ (Class / Grade Level)
+                  </label>
+                  <select
+                    value={catClassGrade}
+                    onChange={(e) => setCatClassGrade(e.target.value)}
+                    className="w-full h-9 px-2.5 border border-slate-300 rounded-md bg-white font-khmer font-semibold"
+                  >
+                    <option value="All Classes (គ្រប់ថ្នាក់)">គ្រប់ថ្នាក់ទាំងអស់ (All Classes)</option>
+                    {settings.gradeLevels.map(gl => (
+                      <option key={gl} value={gl}>{gl}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block font-semibold text-slate-700 mb-1">
+                    កម្មវិធីសិក្សា (Program)
+                  </label>
+                  <select
+                    value={catProgramType}
+                    onChange={(e) => setCatProgramType(e.target.value as any)}
+                    className="w-full h-9 px-2.5 border border-slate-300 rounded-md bg-white font-khmer font-semibold"
+                  >
+                    <option value="all">គ្រប់កម្មវិធី (All Programs)</option>
+                    <option value="khmer">កម្មវិធីភាសាខ្មែរ (Khmer Program)</option>
+                    <option value="english">កម្មវិធីភាសាអង់គ្លេស (English Program)</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block font-semibold text-slate-700 mb-1">
+                    វដ្តនៃការបង់ប្រាក់ (Billing Cycle)
+                  </label>
+                  <select
+                    value={catBillingCycle}
+                    onChange={(e) => setCatBillingCycle(e.target.value)}
+                    className="w-full h-9 px-2.5 border border-slate-300 rounded-md bg-white font-khmer font-semibold"
+                  >
+                    <option value="Term">បង់ជា Term (ត្រីមាស/Term)</option>
+                    <option value="Monthly">បង់ប្រចាំខែ (Monthly)</option>
+                    <option value="Semester">បង់ប្រចាំឆមាស (Semester)</option>
+                    <option value="Annual">បង់ប្រចាំឆ្នាំ (Annual)</option>
+                    <option value="One-Time">បង់មួយលើកគត់ (One-Time)</option>
+                  </select>
+                </div>
+              </div>
+
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block font-semibold text-slate-700 mb-1">Default Base Amount ($)</label>
@@ -1735,17 +1962,6 @@ export const ProductInventoryView: React.FC = () => {
                     <option value="inactive">Inactive (អសកម្ម)</option>
                   </select>
                 </div>
-              </div>
-
-              <div>
-                <label className="block font-semibold text-slate-700 mb-1">Applicable Grades (កម្រិតថ្នាក់)</label>
-                <input
-                  type="text"
-                  value={catGrades}
-                  onChange={(e) => setCatGrades(e.target.value)}
-                  placeholder="e.g. Grades 7-12, All Grades"
-                  className="w-full h-9 px-3 border border-slate-300 rounded-md font-khmer"
-                />
               </div>
 
               <label className="flex items-center gap-2 cursor-pointer pt-1">
@@ -1873,6 +2089,16 @@ export const ProductInventoryView: React.FC = () => {
           </div>
         </div>
       )}
+
+      {/* In-app Confirmation Modal */}
+      <ConfirmModal
+        isOpen={confirmModalData.isOpen}
+        title={confirmModalData.title}
+        message={confirmModalData.message}
+        itemName={confirmModalData.itemName}
+        onConfirm={confirmModalData.onConfirm}
+        onClose={() => setConfirmModalData(prev => ({ ...prev, isOpen: false }))}
+      />
     </div>
   );
 };

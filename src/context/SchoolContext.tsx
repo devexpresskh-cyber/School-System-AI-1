@@ -35,6 +35,12 @@ import {
   INITIAL_KHMER_DUE_RECORDS,
   INITIAL_ENGLISH_DUE_RECORDS
 } from '../data/dueReportsData';
+import {
+  sendTelegramMessage,
+  sendTelegramDocument,
+  formatPaymentAlertMessage,
+  formatDailyBackupCaption
+} from '../services/telegramService';
 
 interface SchoolContextType {
   branches: Branch[];
@@ -121,6 +127,7 @@ interface SchoolContextType {
   branchAcademicRecords: AcademicRecord[];
   addAcademicRecord: (rec: Omit<AcademicRecord, 'id'>) => AcademicRecord;
   updateAcademicRecord: (id: string, rec: Partial<AcademicRecord>) => void;
+  deleteAcademicRecord: (id: string) => void;
 
   expenses: ExpenseRecord[];
   branchExpenses: ExpenseRecord[];
@@ -144,11 +151,17 @@ interface SchoolContextType {
   addBranch: (b: Omit<Branch, 'id'>) => Branch;
   updateBranch: (id: string, b: Partial<Branch>) => void;
   deleteBranch: (id: string) => boolean;
+  getNextInvoiceNumber: (year?: string | number) => string;
 
   // Backup & Restore
   createBackupJson: () => string;
   restoreFromBackupJson: (jsonString: string) => boolean;
   resetToDefaults: () => void;
+
+  // Telegram Integration
+  sendTelegramPaymentReceipt: (paymentId: string) => Promise<{ success: boolean; error?: string }>;
+  sendTelegramBackupNow: () => Promise<{ success: boolean; error?: string }>;
+  testTelegramConnection: (token?: string, chatId?: string) => Promise<{ success: boolean; error?: string }>;
 
   // Excel / CSV Importers
   importStudentsFromExcel: (rows: any[]) => { successCount: number; errors: string[] };
@@ -251,7 +264,22 @@ export const SchoolProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
   const [settings, setSettings] = useState<SystemSettings>(() => {
     const saved = localStorage.getItem(`${STORAGE_KEY}_settings`);
-    return saved ? JSON.parse(saved) : INITIAL_SETTINGS;
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        return {
+          ...INITIAL_SETTINGS,
+          ...parsed,
+          telegramConfig: {
+            ...INITIAL_SETTINGS.telegramConfig,
+            ...(parsed.telegramConfig || {})
+          }
+        };
+      } catch (e) {
+        console.error('Failed to parse settings from storage:', e);
+      }
+    }
+    return INITIAL_SETTINGS;
   });
 
   // Sync to local storage
@@ -531,6 +559,28 @@ export const SchoolProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       createdAt: new Date().toISOString()
     };
     setPayments(prev => [newPayment, ...prev]);
+
+    // Send real-time Telegram alert if enabled
+    if (
+      settings.telegramConfig?.enabled &&
+      settings.telegramConfig?.paymentAlerts &&
+      settings.telegramConfig?.botToken &&
+      settings.telegramConfig?.chatId
+    ) {
+      const targetBranch = branches.find(b => b.id === newPayment.branchId);
+      const branchDisplay = targetBranch 
+        ? `${targetBranch.nameKhmer} (${targetBranch.nameEnglish})` 
+        : newPayment.branchId;
+      const alertMsg = formatPaymentAlertMessage(newPayment, branchDisplay);
+      sendTelegramMessage(
+        settings.telegramConfig.botToken,
+        settings.telegramConfig.chatId,
+        alertMsg
+      ).catch(err => {
+        console.warn('[FBIS] Failed to send payment alert to Telegram:', err);
+      });
+    }
+
     return newPayment;
   };
 
@@ -590,6 +640,10 @@ export const SchoolProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
   const updateAcademicRecord = (id: string, rec: Partial<AcademicRecord>) => {
     setAcademicRecords(prev => prev.map(r => r.id === id ? { ...r, ...rec } : r));
+  };
+
+  const deleteAcademicRecord = (id: string) => {
+    setAcademicRecords(prev => prev.filter(r => r.id !== id));
   };
 
   // Expenses CRUD
@@ -659,17 +713,54 @@ export const SchoolProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
   const deleteBranch = (id: string): boolean => {
     if (branches.length <= 1) {
-      alert('Cannot delete the only remaining campus branch.');
       return false;
     }
-    const remaining = branches.filter(br => br.id !== id);
+    const targetBranch = branches.find(br => br.id === id);
+    let remaining = branches.filter(br => br.id !== id);
+
+    // If deleting headquarters, transfer headquarters status to first remaining branch
+    if (targetBranch?.isHeadquarters && remaining.length > 0) {
+      remaining = remaining.map((br, idx) => idx === 0 ? { ...br, isHeadquarters: true } : br);
+    }
     setBranches(remaining);
 
     // If currently on deleted branch, switch to the first remaining branch
-    if (currentBranchId === id) {
+    if (currentBranchId === id && remaining.length > 0) {
       setCurrentBranchId(remaining[0].id);
     }
     return true;
+  };
+
+  // Generate next sequential invoice number starting from 1 each year (e.g. 2026-00001, 2026-00002...)
+  const getNextInvoiceNumber = (yearParam?: string | number): string => {
+    const yr = yearParam 
+      ? String(yearParam).slice(0, 4) 
+      : (settings?.activeAcademicYear ? settings.activeAcademicYear.slice(0, 4) : '2026');
+
+    let maxSeq = 0;
+    payments.forEach(p => {
+      const inv = p.invoiceNumber || '';
+      if (inv.startsWith(yr)) {
+        const parts = inv.split('-');
+        if (parts.length >= 2) {
+          const numPart = parseInt(parts[1], 10);
+          if (!isNaN(numPart) && numPart > maxSeq) {
+            maxSeq = numPart;
+          }
+        }
+      } else if (String(p.runningYear) === yr || (p.academicYear && p.academicYear.startsWith(yr))) {
+        const match = inv.match(/\d+$/);
+        if (match) {
+          const numPart = parseInt(match[0], 10);
+          if (!isNaN(numPart) && numPart < 90000 && numPart > maxSeq) {
+            maxSeq = numPart;
+          }
+        }
+      }
+    });
+
+    const nextSeq = maxSeq + 1;
+    return `${yr}-${String(nextSeq).padStart(5, '0')}`;
   };
 
   // Backup & Restore
@@ -749,6 +840,112 @@ export const SchoolProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     setEnglishDueRecords(INITIAL_ENGLISH_DUE_RECORDS);
     setSettings(INITIAL_SETTINGS);
   };
+
+  // Telegram Integration Actions
+  const sendTelegramPaymentReceipt = async (paymentId: string): Promise<{ success: boolean; error?: string }> => {
+    const cfg = settings.telegramConfig;
+    if (!cfg?.botToken || !cfg?.chatId) {
+      return { success: false, error: 'Telegram Bot Token និង Chat ID មិនទាន់បានកំណត់ទេ (Bot Token & Chat ID not configured).' };
+    }
+    const payment = payments.find(p => p.id === paymentId);
+    if (!payment) {
+      return { success: false, error: 'រកមិនឃើញវិក្កយបត្រនេះទេ (Payment invoice not found).' };
+    }
+    const targetBranch = branches.find(b => b.id === payment.branchId);
+    const branchDisplay = targetBranch 
+      ? `${targetBranch.nameKhmer} (${targetBranch.nameEnglish})` 
+      : payment.branchId;
+    const msg = formatPaymentAlertMessage(payment, branchDisplay);
+    return await sendTelegramMessage(cfg.botToken, cfg.chatId, msg);
+  };
+
+  const sendTelegramBackupNow = async (): Promise<{ success: boolean; error?: string }> => {
+    const cfg = settings.telegramConfig;
+    if (!cfg?.botToken || !cfg?.chatId) {
+      return { success: false, error: 'Telegram Bot Token និង Chat ID មិនទាន់បានកំណត់ទេ (Bot Token & Chat ID not configured).' };
+    }
+    const backupJson = createBackupJson();
+    const todayStr = new Date().toISOString().split('T')[0];
+    const totalIncome = payments.reduce((sum, p) => sum + p.paidUSD, 0);
+    const caption = formatDailyBackupCaption({
+      totalStudents: students.length,
+      totalPayments: payments.length,
+      totalBranches: branches.length,
+      totalIncomeUSD: totalIncome,
+      dateStr: new Date().toLocaleDateString('km-KH', { dateStyle: 'full' }) + ` (${new Date().toLocaleTimeString()})`
+    });
+    const fileName = `FBIS_Database_Backup_${todayStr}_${Date.now()}.json`;
+    const res = await sendTelegramDocument(cfg.botToken, cfg.chatId, backupJson, fileName, caption);
+    if (res.success) {
+      const nowIso = new Date().toISOString();
+      updateSettings({
+        telegramConfig: {
+          ...cfg,
+          lastBackupDate: nowIso
+        }
+      });
+    }
+    return res;
+  };
+
+  const testTelegramConnection = async (token?: string, chatId?: string): Promise<{ success: boolean; error?: string }> => {
+    const activeToken = (token ?? settings.telegramConfig?.botToken ?? '').trim();
+    const activeChatId = (chatId ?? settings.telegramConfig?.chatId ?? '').trim();
+
+    if (!activeToken || !activeChatId) {
+      return { success: false, error: 'សូមបញ្ចូល Telegram Bot Token និង Chat ID ជាមុនសិន (Please enter Bot Token & Chat ID).' };
+    }
+
+    const testMsg = `<b>🔔 ការតភ្ជាប់ Telegram ទទួលបានជោគជ័យ! / TELEGRAM CONNECTION TEST</b>
+<b>━━━━━━━━━━━━━━━━━━━━</b>
+🏫 <b>សាលា អន្តរជាតិ ហ្វូឈ័រប្រាយ (FBIS)</b>
+✅ ការកំណត់ Bot Token និង Chat ID បានត្រឹមត្រូវ។
+📅 កាលបរិច្ឆេទ: ${new Date().toLocaleString()}
+<i>ប្រព័ន្ធរួចរាល់សម្រាប់ការផ្ញើសារជូនដំណឹងវិក្កយបត្រ (Payment Alerts) និងស្វ័យប្រវត្តិបម្រុងទុកទិន្នន័យ (Daily Backup)!</i>`;
+
+    return await sendTelegramMessage(activeToken, activeChatId, testMsg);
+  };
+
+  // Auto Daily Telegram Backup Scheduler (Checks every 60 seconds)
+  useEffect(() => {
+    const cfg = settings.telegramConfig;
+    if (!cfg || !cfg.enabled || !cfg.autoDailyBackup || !cfg.botToken || !cfg.chatId) {
+      return;
+    }
+
+    const checkDailyBackup = () => {
+      const currentCfg = settings.telegramConfig;
+      if (!currentCfg || !currentCfg.enabled || !currentCfg.autoDailyBackup || !currentCfg.botToken || !currentCfg.chatId) {
+        return;
+      }
+
+      const now = new Date();
+      const todayDateStr = now.toISOString().split('T')[0]; // YYYY-MM-DD
+      const lastBackupDateOnly = currentCfg.lastBackupDate ? currentCfg.lastBackupDate.split('T')[0] : '';
+
+      // Skip if already backed up today
+      if (lastBackupDateOnly === todayDateStr) {
+        return;
+      }
+
+      const targetTime = currentCfg.dailyBackupTime || '18:00';
+      const [targetHours, targetMinutes] = targetTime.split(':').map(Number);
+      const currentHours = now.getHours();
+      const currentMinutes = now.getMinutes();
+
+      // Trigger if current time is equal or past scheduled time
+      if (currentHours > targetHours || (currentHours === targetHours && currentMinutes >= targetMinutes)) {
+        console.log('[FBIS] Triggering automatic daily backup to Telegram...');
+        sendTelegramBackupNow().catch(err => {
+          console.error('[FBIS] Automatic Telegram backup error:', err);
+        });
+      }
+    };
+
+    checkDailyBackup();
+    const timer = setInterval(checkDailyBackup, 60000);
+    return () => clearInterval(timer);
+  }, [settings.telegramConfig]);
 
   // Excel / CSV Importers
   const importStudentsFromExcel = (rows: any[]) => {
@@ -1005,6 +1202,7 @@ export const SchoolProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         branchAcademicRecords,
         addAcademicRecord,
         updateAcademicRecord,
+        deleteAcademicRecord,
         expenses,
         branchExpenses,
         addExpense,
@@ -1023,9 +1221,13 @@ export const SchoolProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         addBranch,
         updateBranch,
         deleteBranch,
+        getNextInvoiceNumber,
         createBackupJson,
         restoreFromBackupJson,
         resetToDefaults,
+        sendTelegramPaymentReceipt,
+        sendTelegramBackupNow,
+        testTelegramConnection,
         importStudentsFromExcel,
         importPaymentsFromExcel,
         importGradesFromExcel,

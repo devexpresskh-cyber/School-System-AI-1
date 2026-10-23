@@ -130,6 +130,18 @@ export const StudentsList: React.FC = () => {
                 <option key={g} value={g}>{g}</option>
               ))}
             </select>
+            <button
+              type="button"
+              onClick={() => {
+                localStorage.setItem('fbis_settings_tab', 'academic');
+                setActiveTab('settings');
+              }}
+              className="h-9 px-2.5 bg-slate-100 hover:bg-blue-50 text-slate-700 hover:text-blue-700 border border-slate-300 rounded-lg text-xs font-semibold flex items-center gap-1 transition-colors cursor-pointer shrink-0"
+              title="Add, edit, or delete classes in System Settings (គ្រប់គ្រងថ្នាក់រៀន)"
+            >
+              <GraduationCap className="w-3.5 h-3.5 text-blue-600" />
+              <span>គ្រប់គ្រងថ្នាក់</span>
+            </button>
           </div>
         </div>
 

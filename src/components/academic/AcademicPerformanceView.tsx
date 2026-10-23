@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useSchool } from '../../context/SchoolContext';
 import { AcademicRecord, Student } from '../../types';
 import { ReportCardPrintModal } from './ReportCardPrintModal';
+import { ConfirmModal } from '../common/ConfirmModal';
 import { 
   Award, 
   Printer, 
@@ -12,7 +13,10 @@ import {
   Users, 
   CheckCircle2,
   X,
-  FileSpreadsheet
+  FileSpreadsheet,
+  Edit2,
+  Trash2,
+  Save
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 
@@ -21,6 +25,8 @@ export const AcademicPerformanceView: React.FC = () => {
     branchAcademicRecords, 
     branchStudents, 
     addAcademicRecord, 
+    updateAcademicRecord,
+    deleteAcademicRecord,
     selectedBranch, 
     settings,
     setSelectedStudentId,
@@ -34,8 +40,9 @@ export const AcademicPerformanceView: React.FC = () => {
   // Modals
   const [selectedRecordForPrint, setSelectedRecordForPrint] = useState<AcademicRecord | null>(null);
   const [isAddRecordModalOpen, setIsAddRecordModalOpen] = useState(false);
+  const [editingRecord, setEditingRecord] = useState<AcademicRecord | null>(null);
 
-  // Form state for adding marks
+  // Form state for adding/editing marks
   const [selectedStudentForMarks, setSelectedStudentForMarks] = useState<Student | null>(branchStudents[0] || null);
   const [newTerm, setNewTerm] = useState<'Semester 1' | 'Semester 2' | 'Annual'>('Semester 1');
   const [scoreKhmer, setScoreKhmer] = useState(88);
@@ -47,7 +54,23 @@ export const AcademicPerformanceView: React.FC = () => {
   const [scoreICT, setScoreICT] = useState(95);
   const [scoreHistory, setScoreHistory] = useState(88);
   const [scoreMoral, setScoreMoral] = useState(94);
+  const [behaviorGrade, setBehaviorGrade] = useState<'A' | 'B' | 'C' | 'D'>('A');
+  const [attendanceRate, setAttendanceRate] = useState<number>(98.5);
   const [feedback, setFeedback] = useState('Outstanding academic progress.');
+
+  // Confirmation modal state
+  const [confirmModalData, setConfirmModalData] = useState<{
+    isOpen: boolean;
+    title: string;
+    message: string;
+    itemName?: string;
+    onConfirm: () => void;
+  }>({
+    isOpen: false,
+    title: '',
+    message: '',
+    onConfirm: () => {}
+  });
 
   // Filtered records
   const filteredRecords = branchAcademicRecords.filter(r => {
@@ -106,9 +129,64 @@ export const AcademicPerformanceView: React.FC = () => {
     XLSX.writeFile(workbook, `FBIS_${selectedGrade}_Grades_${selectedTerm}.xlsx`);
   };
 
+  const handleOpenNew = () => {
+    setEditingRecord(null);
+    setSelectedStudentForMarks(branchStudents[0] || null);
+    setNewTerm('Semester 1');
+    setScoreKhmer(88);
+    setScoreMath(90);
+    setScoreEnglish(92);
+    setScorePhysics(85);
+    setScoreChemistry(86);
+    setScoreBiology(89);
+    setScoreICT(95);
+    setScoreHistory(88);
+    setScoreMoral(94);
+    setBehaviorGrade('A');
+    setAttendanceRate(98.5);
+    setFeedback('Outstanding academic progress.');
+    setIsAddRecordModalOpen(true);
+  };
+
+  const handleOpenEdit = (rec: AcademicRecord) => {
+    setEditingRecord(rec);
+    const matched = branchStudents.find(s => s.id === rec.studentId || s.studentCode === rec.studentCode) || null;
+    setSelectedStudentForMarks(matched);
+    setNewTerm(rec.term as any);
+    setScoreKhmer(rec.subjects.find(s => s.subjectId === 'khm')?.score ?? 88);
+    setScoreMath(rec.subjects.find(s => s.subjectId === 'mat')?.score ?? 90);
+    setScoreEnglish(rec.subjects.find(s => s.subjectId === 'eng')?.score ?? 92);
+    setScorePhysics(rec.subjects.find(s => s.subjectId === 'phy')?.score ?? 85);
+    setScoreChemistry(rec.subjects.find(s => s.subjectId === 'che')?.score ?? 86);
+    setScoreBiology(rec.subjects.find(s => s.subjectId === 'bio')?.score ?? 89);
+    setScoreICT(rec.subjects.find(s => s.subjectId === 'ict')?.score ?? 95);
+    setScoreHistory(rec.subjects.find(s => s.subjectId === 'his')?.score ?? 88);
+    setScoreMoral(rec.subjects.find(s => s.subjectId === 'mor')?.score ?? 94);
+    setBehaviorGrade(rec.behaviorGrade || 'A');
+    setAttendanceRate(rec.attendanceRate || 98.5);
+    setFeedback(rec.teacherFeedback || '');
+    setIsAddRecordModalOpen(true);
+  };
+
+  const handleDeleteRecord = (rec: AcademicRecord) => {
+    setConfirmModalData({
+      isOpen: true,
+      title: 'លុបកំណត់ត្រាពិន្ទុ (Delete Academic Grade Record)',
+      message: `តើលោកអ្នកពិតជាចង់លុបកំណត់ត្រាពិន្ទុរបស់សិស្ស "${rec.studentNameKhmer}" (${rec.term}) មែនទេ?`,
+      itemName: `${rec.studentNameKhmer} - ${rec.classGrade} (${rec.term}) · Total: ${rec.totalScore} pts (${rAverage(rec.totalScore, rec.subjects.length)}%)`,
+      onConfirm: () => {
+        deleteAcademicRecord(rec.id);
+      }
+    });
+  };
+
+  const rAverage = (total: number, count: number) => {
+    return count > 0 ? (total / count).toFixed(1) : '0';
+  };
+
   const handleSaveMarks = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!selectedStudentForMarks) return;
+    if (!selectedStudentForMarks && !editingRecord) return;
 
     const subjects = [
       { subjectId: 'khm', subjectName: 'Khmer Literature', subjectNameKhmer: 'អក្សរសាស្ត្រខ្មែរ', score: scoreKhmer, maxScore: 100, grade: scoreKhmer >= 90 ? 'A' : scoreKhmer >= 80 ? 'B' : 'C' as any },
@@ -126,26 +204,40 @@ export const AcademicPerformanceView: React.FC = () => {
     const average = Number((totalScore / subjects.length).toFixed(2));
     const gpa = Number((average / 25).toFixed(2));
 
-    addAcademicRecord({
-      studentId: selectedStudentForMarks.id,
-      studentCode: selectedStudentForMarks.studentCode,
-      studentName: selectedStudentForMarks.nameEnglish,
-      studentNameKhmer: selectedStudentForMarks.nameKhmer,
-      classGrade: selectedStudentForMarks.classGrade,
-      academicYear: '2025-2026',
-      term: newTerm,
-      branchId: selectedBranch.id,
-      subjects,
-      totalScore,
-      average,
-      gpa,
-      rank: sortedRecords.length + 1,
-      totalStudentsInClass: 35,
-      behaviorGrade: 'A',
-      attendanceRate: 98.5,
-      teacherFeedback: feedback,
-      dateRecorded: new Date().toISOString().split('T')[0]
-    });
+    if (editingRecord) {
+      updateAcademicRecord(editingRecord.id, {
+        term: newTerm,
+        subjects,
+        totalScore,
+        average,
+        gpa,
+        behaviorGrade,
+        attendanceRate,
+        teacherFeedback: feedback
+      });
+      setEditingRecord(null);
+    } else if (selectedStudentForMarks) {
+      addAcademicRecord({
+        studentId: selectedStudentForMarks.id,
+        studentCode: selectedStudentForMarks.studentCode,
+        studentName: selectedStudentForMarks.nameEnglish,
+        studentNameKhmer: selectedStudentForMarks.nameKhmer,
+        classGrade: selectedStudentForMarks.classGrade,
+        academicYear: '2025-2026',
+        term: newTerm,
+        branchId: selectedBranch.id,
+        subjects,
+        totalScore,
+        average,
+        gpa,
+        rank: sortedRecords.length + 1,
+        totalStudentsInClass: 35,
+        behaviorGrade,
+        attendanceRate,
+        teacherFeedback: feedback,
+        dateRecorded: new Date().toISOString().split('T')[0]
+      });
+    }
 
     setIsAddRecordModalOpen(false);
   };
@@ -208,7 +300,7 @@ export const AcademicPerformanceView: React.FC = () => {
           </button>
 
           <button
-            onClick={() => setIsAddRecordModalOpen(true)}
+            onClick={handleOpenNew}
             className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-lg shadow-xs flex items-center gap-1.5 transition-colors cursor-pointer"
           >
             <Plus className="w-4 h-4" />
@@ -399,14 +491,31 @@ export const AcademicPerformanceView: React.FC = () => {
                       </td>
 
                       <td className="py-2.5 px-3 text-center">
-                        <button
-                          onClick={() => setSelectedRecordForPrint(r)}
-                          className="px-2.5 py-1 bg-blue-600 hover:bg-blue-700 text-white text-[11px] font-bold rounded flex items-center gap-1 shadow-2xs transition-colors cursor-pointer"
-                          title="Print Official Report Card"
-                        >
-                          <Printer className="w-3 h-3" />
-                          <span>Report Card</span>
-                        </button>
+                        <div className="flex items-center justify-center gap-1">
+                          <button
+                            onClick={() => setSelectedRecordForPrint(r)}
+                            className="p-1.5 text-blue-600 hover:text-blue-800 hover:bg-blue-50 rounded transition-colors cursor-pointer"
+                            title="Print Official Report Card (បោះពុម្ពព្រឹត្តិបត្រពិន្ទុ)"
+                          >
+                            <Printer className="w-3.5 h-3.5" />
+                          </button>
+
+                          <button
+                            onClick={() => handleOpenEdit(r)}
+                            className="p-1.5 text-slate-500 hover:text-emerald-700 hover:bg-emerald-50 rounded transition-colors cursor-pointer"
+                            title="Edit Grade Record (កែសម្រួលពិន្ទុប្រឡង)"
+                          >
+                            <Edit2 className="w-3.5 h-3.5" />
+                          </button>
+
+                          <button
+                            onClick={() => handleDeleteRecord(r)}
+                            className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors cursor-pointer"
+                            title="Delete Grade Record (លុបកំណត់ត្រាពិន្ទុ)"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   );
@@ -417,41 +526,55 @@ export const AcademicPerformanceView: React.FC = () => {
         </div>
       </div>
 
-      {/* Add Record / Mark Entry Modal */}
+      {/* Add / Edit Academic Record Modal */}
       {isAddRecordModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-3 bg-slate-900/60 backdrop-blur-xs overflow-y-auto">
-          <div className="bg-white w-full max-w-2xl rounded-xl shadow-2xl overflow-hidden border border-slate-200 my-6">
+          <div className="bg-white w-full max-w-2xl rounded-xl shadow-2xl overflow-hidden border border-slate-200 my-6 animate-in fade-in zoom-in-95 duration-150">
             <div className="bg-blue-800 text-white px-5 py-3.5 flex items-center justify-between">
               <h3 className="text-sm font-bold flex items-center gap-2">
                 <GraduationCap className="w-4 h-4 text-blue-200" />
-                <span>Enter Academic Exam Marks (បញ្ចូលពិន្ទុប្រឡង)</span>
+                <span>
+                  {editingRecord 
+                    ? `កែសម្រួលពិន្ទុប្រឡង (Edit Exam Marks) - ${editingRecord.studentNameKhmer}` 
+                    : 'បញ្ចូលពិន្ទុប្រឡងសិស្សថ្មី (Enter Academic Exam Marks)'}
+                </span>
               </h3>
               <button
-                onClick={() => setIsAddRecordModalOpen(false)}
-                className="text-blue-200 hover:text-white p-1"
+                onClick={() => {
+                  setIsAddRecordModalOpen(false);
+                  setEditingRecord(null);
+                }}
+                className="text-blue-200 hover:text-white p-1 rounded hover:bg-blue-700 transition-colors cursor-pointer"
               >
                 <X className="w-5 h-5" />
               </button>
             </div>
 
             <form onSubmit={handleSaveMarks} className="p-5 space-y-4 text-xs">
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className="block font-semibold text-slate-700 mb-1">Student / សិស្ស</label>
-                  <select
-                    value={selectedStudentForMarks?.id}
-                    onChange={(e) => {
-                      const found = branchStudents.find(s => s.id === e.target.value);
-                      if (found) setSelectedStudentForMarks(found);
-                    }}
-                    className="w-full h-9 px-3 border border-slate-300 rounded-md font-khmer focus:ring-1 focus:ring-blue-500"
-                  >
-                    {branchStudents.map(s => (
-                      <option key={s.id} value={s.id}>
-                        {s.nameKhmer} ({s.classGrade} - {s.roll})
-                      </option>
-                    ))}
-                  </select>
+                  {editingRecord ? (
+                    <div className="h-9 px-3 border border-slate-200 bg-slate-50 rounded-md flex items-center justify-between font-khmer font-bold text-slate-900">
+                      <span>{editingRecord.studentNameKhmer} ({editingRecord.classGrade})</span>
+                      <span className="font-mono text-slate-500 text-[11px] font-normal">{editingRecord.studentCode}</span>
+                    </div>
+                  ) : (
+                    <select
+                      value={selectedStudentForMarks?.id}
+                      onChange={(e) => {
+                        const found = branchStudents.find(s => s.id === e.target.value);
+                        if (found) setSelectedStudentForMarks(found);
+                      }}
+                      className="w-full h-9 px-3 border border-slate-300 rounded-md font-khmer focus:ring-1 focus:ring-blue-500 bg-white"
+                    >
+                      {branchStudents.map(s => (
+                        <option key={s.id} value={s.id}>
+                          {s.nameKhmer} ({s.classGrade} - {s.studentCode})
+                        </option>
+                      ))}
+                    </select>
+                  )}
                 </div>
 
                 <div>
@@ -459,18 +582,26 @@ export const AcademicPerformanceView: React.FC = () => {
                   <select
                     value={newTerm}
                     onChange={(e) => setNewTerm(e.target.value as any)}
-                    className="w-full h-9 px-3 border border-slate-300 rounded-md focus:ring-1 focus:ring-blue-500"
+                    className="w-full h-9 px-3 border border-slate-300 rounded-md focus:ring-1 focus:ring-blue-500 bg-white"
                   >
                     <option value="Semester 1">Semester 1 (ឆមាសទី១)</option>
                     <option value="Semester 2">Semester 2 (ឆមាសទី២)</option>
+                    <option value="Quarter 1">Quarter 1 (ត្រីមាសទី១)</option>
+                    <option value="Quarter 2">Quarter 2 (ត្រីមាសទី២)</option>
+                    <option value="Quarter 3">Quarter 3 (ត្រីមាសទី៣)</option>
+                    <option value="Quarter 4">Quarter 4 (ត្រីមាសទី៤)</option>
                     <option value="Annual">Annual (ប្រចាំឆ្នាំ)</option>
                   </select>
                 </div>
               </div>
 
-              <div className="border border-slate-200 rounded-lg p-3 bg-slate-50">
-                <h4 className="font-bold text-slate-700 mb-2 font-khmer">ពិន្ទុមុខវិជ្ជា (Scores out of 100)</h4>
-                <div className="grid grid-cols-3 gap-3">
+              {/* Subject scores grid */}
+              <div className="border border-slate-200 rounded-lg p-3 bg-slate-50/80">
+                <div className="flex items-center justify-between mb-2">
+                  <h4 className="font-bold text-slate-700 font-khmer">ពិន្ទុមុខវិជ្ជា (Scores out of 100)</h4>
+                  <span className="text-[11px] text-slate-500">គិតជាពិន្ទុ ១០០/មុខវិជ្ជា</span>
+                </div>
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
                   <div>
                     <label className="block text-slate-600 mb-1 font-khmer">អក្សរសាស្ត្រខ្មែរ</label>
                     <input
@@ -479,7 +610,7 @@ export const AcademicPerformanceView: React.FC = () => {
                       max="100"
                       value={scoreKhmer}
                       onChange={(e) => setScoreKhmer(parseInt(e.target.value, 10) || 0)}
-                      className="w-full h-8 px-2 border rounded font-mono"
+                      className="w-full h-8 px-2 border border-slate-300 rounded font-mono bg-white focus:outline-none focus:ring-1 focus:ring-blue-500"
                     />
                   </div>
                   <div>
@@ -490,7 +621,7 @@ export const AcademicPerformanceView: React.FC = () => {
                       max="100"
                       value={scoreMath}
                       onChange={(e) => setScoreMath(parseInt(e.target.value, 10) || 0)}
-                      className="w-full h-8 px-2 border rounded font-mono"
+                      className="w-full h-8 px-2 border border-slate-300 rounded font-mono bg-white focus:outline-none focus:ring-1 focus:ring-blue-500"
                     />
                   </div>
                   <div>
@@ -501,7 +632,7 @@ export const AcademicPerformanceView: React.FC = () => {
                       max="100"
                       value={scoreEnglish}
                       onChange={(e) => setScoreEnglish(parseInt(e.target.value, 10) || 0)}
-                      className="w-full h-8 px-2 border rounded font-mono"
+                      className="w-full h-8 px-2 border border-slate-300 rounded font-mono bg-white focus:outline-none focus:ring-1 focus:ring-blue-500"
                     />
                   </div>
                   <div>
@@ -512,7 +643,7 @@ export const AcademicPerformanceView: React.FC = () => {
                       max="100"
                       value={scorePhysics}
                       onChange={(e) => setScorePhysics(parseInt(e.target.value, 10) || 0)}
-                      className="w-full h-8 px-2 border rounded font-mono"
+                      className="w-full h-8 px-2 border border-slate-300 rounded font-mono bg-white focus:outline-none focus:ring-1 focus:ring-blue-500"
                     />
                   </div>
                   <div>
@@ -523,7 +654,7 @@ export const AcademicPerformanceView: React.FC = () => {
                       max="100"
                       value={scoreChemistry}
                       onChange={(e) => setScoreChemistry(parseInt(e.target.value, 10) || 0)}
-                      className="w-full h-8 px-2 border rounded font-mono"
+                      className="w-full h-8 px-2 border border-slate-300 rounded font-mono bg-white focus:outline-none focus:ring-1 focus:ring-blue-500"
                     />
                   </div>
                   <div>
@@ -534,7 +665,7 @@ export const AcademicPerformanceView: React.FC = () => {
                       max="100"
                       value={scoreBiology}
                       onChange={(e) => setScoreBiology(parseInt(e.target.value, 10) || 0)}
-                      className="w-full h-8 px-2 border rounded font-mono"
+                      className="w-full h-8 px-2 border border-slate-300 rounded font-mono bg-white focus:outline-none focus:ring-1 focus:ring-blue-500"
                     />
                   </div>
                   <div>
@@ -545,7 +676,7 @@ export const AcademicPerformanceView: React.FC = () => {
                       max="100"
                       value={scoreICT}
                       onChange={(e) => setScoreICT(parseInt(e.target.value, 10) || 0)}
-                      className="w-full h-8 px-2 border rounded font-mono"
+                      className="w-full h-8 px-2 border border-slate-300 rounded font-mono bg-white focus:outline-none focus:ring-1 focus:ring-blue-500"
                     />
                   </div>
                   <div>
@@ -556,7 +687,7 @@ export const AcademicPerformanceView: React.FC = () => {
                       max="100"
                       value={scoreHistory}
                       onChange={(e) => setScoreHistory(parseInt(e.target.value, 10) || 0)}
-                      className="w-full h-8 px-2 border rounded font-mono"
+                      className="w-full h-8 px-2 border border-slate-300 rounded font-mono bg-white focus:outline-none focus:ring-1 focus:ring-blue-500"
                     />
                   </div>
                   <div>
@@ -567,8 +698,48 @@ export const AcademicPerformanceView: React.FC = () => {
                       max="100"
                       value={scoreMoral}
                       onChange={(e) => setScoreMoral(parseInt(e.target.value, 10) || 0)}
-                      className="w-full h-8 px-2 border rounded font-mono"
+                      className="w-full h-8 px-2 border border-slate-300 rounded font-mono bg-white focus:outline-none focus:ring-1 focus:ring-blue-500"
                     />
+                  </div>
+                </div>
+              </div>
+
+              {/* Conduct & Attendance & Summary preview */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div>
+                  <label className="block font-semibold text-slate-700 mb-1 font-khmer">ពិន្ទុសីលធម៌ (Conduct)</label>
+                  <select
+                    value={behaviorGrade}
+                    onChange={(e) => setBehaviorGrade(e.target.value as any)}
+                    className="w-full h-8 px-2 border border-slate-300 rounded bg-white focus:ring-1 focus:ring-blue-500 font-bold"
+                  >
+                    <option value="A">A - ល្អប្រសើរ (Excellent)</option>
+                    <option value="B">B - ល្អ (Good)</option>
+                    <option value="C">C - មធ្យម (Fair)</option>
+                    <option value="D">D - គួរកែលម្អ (Poor)</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block font-semibold text-slate-700 mb-1 font-khmer">អត្រាវត្តមាន (% Attendance)</label>
+                  <input
+                    type="number"
+                    step="0.1"
+                    min="0"
+                    max="100"
+                    value={attendanceRate}
+                    onChange={(e) => setAttendanceRate(parseFloat(e.target.value) || 0)}
+                    className="w-full h-8 px-2 border border-slate-300 rounded font-mono bg-white focus:ring-1 focus:ring-blue-500"
+                  />
+                </div>
+
+                <div className="bg-blue-50/70 border border-blue-200 rounded p-2 flex flex-col justify-center">
+                  <div className="text-[10px] text-blue-700 font-semibold uppercase">Live Calculation</div>
+                  <div className="text-xs font-mono font-bold text-blue-900 mt-0.5">
+                    Total: {scoreKhmer + scoreMath + scoreEnglish + scorePhysics + scoreChemistry + scoreBiology + scoreICT + scoreHistory + scoreMoral} pts
+                  </div>
+                  <div className="text-[11px] font-mono font-semibold text-emerald-700">
+                    Avg: {((scoreKhmer + scoreMath + scoreEnglish + scorePhysics + scoreChemistry + scoreBiology + scoreICT + scoreHistory + scoreMoral) / 9).toFixed(1)}% · GPA: {(((scoreKhmer + scoreMath + scoreEnglish + scorePhysics + scoreChemistry + scoreBiology + scoreICT + scoreHistory + scoreMoral) / 9) / 25).toFixed(2)}
                   </div>
                 </div>
               </div>
@@ -579,23 +750,28 @@ export const AcademicPerformanceView: React.FC = () => {
                   value={feedback}
                   onChange={(e) => setFeedback(e.target.value)}
                   rows={2}
-                  className="w-full px-3 py-2 border border-slate-300 rounded-md font-khmer"
+                  placeholder="Enter remarks on student's performance..."
+                  className="w-full px-3 py-2 border border-slate-300 rounded-md font-khmer focus:ring-1 focus:ring-blue-500 focus:outline-none"
                 />
               </div>
 
               <div className="pt-3 border-t border-slate-200 flex justify-end gap-2">
                 <button
                   type="button"
-                  onClick={() => setIsAddRecordModalOpen(false)}
-                  className="px-4 py-2 text-slate-600 hover:text-slate-800"
+                  onClick={() => {
+                    setIsAddRecordModalOpen(false);
+                    setEditingRecord(null);
+                  }}
+                  className="px-4 py-2 text-slate-600 hover:text-slate-800 font-medium cursor-pointer"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-lg shadow-xs cursor-pointer"
+                  className="px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-lg shadow-xs cursor-pointer flex items-center gap-1.5 transition-colors"
                 >
-                  Save Marks & Compute Rank
+                  <Save className="w-4 h-4" />
+                  <span>{editingRecord ? 'រក្សាទុកការកែប្រែ (Save Changes)' : 'បញ្ចូលពិន្ទុ (Save Marks & Rank)'}</span>
                 </button>
               </div>
             </form>
@@ -609,6 +785,16 @@ export const AcademicPerformanceView: React.FC = () => {
         branch={selectedBranch}
         settings={settings}
         onClose={() => setSelectedRecordForPrint(null)}
+      />
+
+      {/* Confirmation Modal */}
+      <ConfirmModal
+        isOpen={confirmModalData.isOpen}
+        title={confirmModalData.title}
+        message={confirmModalData.message}
+        itemName={confirmModalData.itemName}
+        onConfirm={confirmModalData.onConfirm}
+        onClose={() => setConfirmModalData(prev => ({ ...prev, isOpen: false }))}
       />
     </div>
   );
