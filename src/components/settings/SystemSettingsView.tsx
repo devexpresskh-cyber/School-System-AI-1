@@ -189,6 +189,71 @@ export const SystemSettingsView: React.FC = () => {
     setTimeout(() => setSaveToast(false), 2500);
   };
 
+  const handleSaveTelegramSettings = (e: React.FormEvent) => {
+    e.preventDefault();
+    updateSettings({
+      telegramConfig: {
+        ...settings.telegramConfig,
+        botToken: telegramBotToken.trim(),
+        chatId: telegramChatId.trim(),
+        channelName: telegramChannelName.trim(),
+        enabled: telegramEnabled,
+        paymentAlerts: telegramPaymentAlerts,
+        autoDailyBackup: telegramAutoBackup,
+        dailyBackupTime: telegramBackupTime,
+      }
+    });
+    setSaveToast(true);
+    setTimeout(() => setSaveToast(false), 2500);
+  };
+
+  const handleTestTelegram = async () => {
+    setIsTestingTelegram(true);
+    setTelegramTestResult(null);
+    try {
+      const res = await testTelegramConnection(telegramBotToken.trim(), telegramChatId.trim());
+      if (res.success) {
+        setTelegramTestResult({ success: true, message: 'បានផ្ញើសារសាកល្បងទៅ Telegram ដោយជោគជ័យ! (Test message sent successfully)' });
+      } else {
+        setTelegramTestResult({ success: false, message: res.error || 'ការតភ្ជាប់បរាជ័យ សូមពិនិត្យ Bot Token និង Chat ID ម្តងទៀត' });
+      }
+    } catch (err: any) {
+      setTelegramTestResult({ success: false, message: err?.message || 'កំហុសបច្ចេកទេសក្នុងការតភ្ជាប់' });
+    } finally {
+      setIsTestingTelegram(false);
+    }
+  };
+
+  const handleManualTelegramBackup = async () => {
+    setIsBackingUpTelegram(true);
+    setTelegramBackupResult(null);
+    try {
+      updateSettings({
+        telegramConfig: {
+          ...settings.telegramConfig,
+          botToken: telegramBotToken.trim(),
+          chatId: telegramChatId.trim(),
+          channelName: telegramChannelName.trim(),
+          enabled: telegramEnabled,
+          paymentAlerts: telegramPaymentAlerts,
+          autoDailyBackup: telegramAutoBackup,
+          dailyBackupTime: telegramBackupTime,
+        }
+      });
+      const res = await sendTelegramBackupNow();
+      if (res.success) {
+        setTelegramBackupResult({ success: true, message: 'បានផ្ញើឯកសារ Backup មូលដ្ឋានទិន្នន័យទៅ Telegram ដោយជោគជ័យ!' });
+      } else {
+        setTelegramBackupResult({ success: false, message: res.error || 'បរាជ័យក្នុងការផ្ញើ Backup' });
+      }
+    } catch (err: any) {
+      setTelegramBackupResult({ success: false, message: err?.message || 'កំហុសបច្ចេកទេសក្នុងការផ្ញើ Backup' });
+    } finally {
+      setIsBackingUpTelegram(false);
+    }
+  };
+
+
   const handleOpenAddBranch = () => {
     setEditingBranch(null);
     setBranchCode(`FBIS 0${branches.length + 1}`);
