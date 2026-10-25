@@ -15,6 +15,7 @@ import { OfficialReportsView } from './components/reports/OfficialReportsView';
 import { ExcelImportView } from './components/excel/ExcelImportView';
 import { SystemSettingsView } from './components/settings/SystemSettingsView';
 import { BackupRestoreView } from './components/settings/BackupRestoreView';
+import { StudentPromoteView } from './components/students/StudentPromoteView';
 
 const MainLayout: React.FC = () => {
   const { activeTab, selectedBranch } = useSchool();
@@ -38,6 +39,8 @@ const MainLayout: React.FC = () => {
         return <StudentsList />;
       case 'student-profile':
         return <StudentProfile />;
+      case 'student-promote':
+        return <StudentPromoteView />;
       case 'inventory':
       case 'stock-report':
         return <ProductInventoryView />;

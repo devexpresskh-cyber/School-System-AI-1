@@ -4,6 +4,7 @@ import { Student } from '../../types';
 import { AddPaymentModal } from '../finance/AddPaymentModal';
 import { CallNotesModal } from './CallNotesModal';
 import { AdmissionFormModal } from './AdmissionFormModal';
+import { SinglePromoteModal } from './SinglePromoteModal';
 import { 
   Search, 
   Plus, 
@@ -16,7 +17,8 @@ import {
   Filter,
   PhoneCall,
   FileText,
-  Printer
+  Printer,
+  TrendingUp
 } from 'lucide-react';
 
 export const StudentsList: React.FC = () => {
@@ -39,6 +41,7 @@ export const StudentsList: React.FC = () => {
   const [isCallNotesModalOpen, setIsCallNotesModalOpen] = useState(false);
   const [isAdmissionModalOpen, setIsAdmissionModalOpen] = useState(false);
   const [admissionModalStudent, setAdmissionModalStudent] = useState<Student | null>(null);
+  const [targetStudentForPromote, setTargetStudentForPromote] = useState<Student | null>(null);
 
   // New Student Form
   const [newNameKhmer, setNewNameKhmer] = useState('');
@@ -147,6 +150,15 @@ export const StudentsList: React.FC = () => {
 
         <div className="flex items-center gap-2">
           <button
+            onClick={() => setActiveTab('student-promote')}
+            className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-lg shadow-xs flex items-center gap-1.5 cursor-pointer transition-colors"
+            title="ឡើងថ្នាក់សិស្សជាថ្នាក់ ឬជាក្រុម (Class Promotion & Advancement)"
+          >
+            <TrendingUp className="w-4 h-4" />
+            <span>ឡើងថ្នាក់សិស្ស (Promote)</span>
+          </button>
+
+          <button
             onClick={() => {
               setAdmissionModalStudent(null);
               setIsAdmissionModalOpen(true);
@@ -252,6 +264,17 @@ export const StudentsList: React.FC = () => {
                     title="Add Payment for this student"
                   >
                     <span>$ Add</span>
+                  </button>
+
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setTargetStudentForPromote(std);
+                    }}
+                    className="p-2 bg-emerald-50 text-emerald-700 hover:bg-emerald-600 hover:text-white border border-emerald-200 font-bold rounded-lg shadow-2xs transition-colors cursor-pointer"
+                    title="ឡើងថ្នាក់សិស្សនេះ (Promote Student)"
+                  >
+                    <TrendingUp className="w-4 h-4" />
                   </button>
 
                   <button
@@ -459,6 +482,15 @@ export const StudentsList: React.FC = () => {
           setActiveTab('student-profile');
         }}
       />
+
+      {/* Single Student Promote Modal */}
+      {targetStudentForPromote && (
+        <SinglePromoteModal
+          isOpen={!!targetStudentForPromote}
+          student={targetStudentForPromote}
+          onClose={() => setTargetStudentForPromote(null)}
+        />
+      )}
     </div>
   );
 };

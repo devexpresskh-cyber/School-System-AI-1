@@ -14,7 +14,8 @@ import {
   Database, 
   Settings, 
   DollarSign,
-  Layers
+  Layers,
+  TrendingUp
 } from 'lucide-react';
 
 interface SidebarProps {
@@ -65,6 +66,12 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onCloseMobile }) => {
       labelKm: 'សិស្ស & ចុះឈ្មោះ',
       icon: <GraduationCap className="w-5 h-5" />,
       badge: branchStudents.length
+    },
+    {
+      id: 'student-promote',
+      labelEn: 'Student Promotion',
+      labelKm: 'ឡើងថ្នាក់សិស្ស',
+      icon: <TrendingUp className="w-5 h-5" />
     },
     {
       id: 'academic-performance',

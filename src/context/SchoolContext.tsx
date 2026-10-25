@@ -14,7 +14,8 @@ import {
   CallNote,
   FeeCategory,
   StockMovement,
-  UserPermissions
+  UserPermissions,
+  PromotionRecord
 } from '../types';
 import { KhmerDueRecord, EnglishDueRecord } from '../types/dueReport';
 import { 
@@ -80,6 +81,28 @@ interface SchoolContextType {
   updateStudent: (id: string, s: Partial<Student>) => void;
   deleteStudent: (id: string) => void;
   getStudentById: (id: string) => Student | undefined;
+
+  // Student Promotion
+  promotions: PromotionRecord[];
+  branchPromotions: PromotionRecord[];
+  promoteStudents: (options: {
+    studentPromotions: Array<{
+      studentId: string;
+      targetClass: string;
+      status?: 'active' | 'graduated' | 'suspended';
+    }>;
+    sourceClass: string;
+    targetClass: string;
+    sourceYear: string;
+    targetYear: string;
+    notes?: string;
+  }) => { success: boolean; count: number };
+  promoteSingleStudent: (
+    studentId: string,
+    targetClass: string,
+    targetYear: string,
+    status?: 'active' | 'graduated' | 'suspended'
+  ) => boolean;
 
   // Users management
   users: User[];
@@ -262,6 +285,34 @@ export const SchoolProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     return saved ? JSON.parse(saved) : INITIAL_ENGLISH_DUE_RECORDS;
   });
 
+  const [promotions, setPromotions] = useState<PromotionRecord[]>(() => {
+    const saved = localStorage.getItem(`${STORAGE_KEY}_promotions`);
+    if (saved) {
+      try {
+        return JSON.parse(saved);
+      } catch (e) {
+        console.error('Failed to parse promotions:', e);
+      }
+    }
+    return [
+      {
+        id: 'promo-1',
+        date: '2025-08-25T08:30:00.000Z',
+        sourceAcademicYear: '2024-2025',
+        targetAcademicYear: '2025-2026',
+        sourceClass: 'ថ្នាក់ទី ៦',
+        targetClass: 'ថ្នាក់ទី ៧',
+        promotedCount: 28,
+        retainedCount: 2,
+        graduatedCount: 0,
+        promotedStudentIds: [],
+        performedBy: 'Super Admin',
+        branchId: 'fbis-02',
+        notes: 'ការឡើងថ្នាក់បញ្ចប់បឋមសិក្សាចូលអនុវិទ្យាល័យ'
+      }
+    ];
+  });
+
   const [settings, setSettings] = useState<SystemSettings>(() => {
     const saved = localStorage.getItem(`${STORAGE_KEY}_settings`);
     if (saved) {
@@ -351,6 +402,10 @@ export const SchoolProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     localStorage.setItem(`${STORAGE_KEY}_settings`, JSON.stringify(settings));
   }, [settings]);
 
+  useEffect(() => {
+    localStorage.setItem(`${STORAGE_KEY}_promotions`, JSON.stringify(promotions));
+  }, [promotions]);
+
   const selectedBranch = branches.find(b => b.id === currentBranchId) || branches[0] || INITIAL_BRANCHES[0];
 
   const branchStudents = currentBranchId === 'all' 
@@ -392,6 +447,10 @@ export const SchoolProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const branchStockMovements = currentBranchId === 'all'
     ? stockMovements
     : stockMovements.filter(sm => sm.branchId === currentBranchId);
+
+  const branchPromotions = currentBranchId === 'all'
+    ? promotions
+    : promotions.filter(p => p.branchId === currentBranchId);
 
   // Authentication
   const login = (emailOrUser: string, role?: UserRole, branchId?: string) => {
@@ -549,6 +608,112 @@ export const SchoolProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
   const getStudentById = (id: string) => {
     return students.find(s => s.id === id);
+  };
+
+  // Student Promotion Handlers
+  const promoteStudents = (options: {
+    studentPromotions: Array<{
+      studentId: string;
+      targetClass: string;
+      status?: 'active' | 'graduated' | 'suspended';
+    }>;
+    sourceClass: string;
+    targetClass: string;
+    sourceYear: string;
+    targetYear: string;
+    notes?: string;
+  }) => {
+    const studentMap = new Map(options.studentPromotions.map(sp => [sp.studentId, sp]));
+    
+    let promotedCount = 0;
+    let retainedCount = 0;
+    let graduatedCount = 0;
+    const promotedIds: string[] = [];
+
+    options.studentPromotions.forEach(sp => {
+      if (sp.status === 'graduated') {
+        graduatedCount++;
+      } else if (sp.targetClass === options.sourceClass) {
+        retainedCount++;
+      } else {
+        promotedCount++;
+      }
+      promotedIds.push(sp.studentId);
+    });
+
+    setStudents(prev => prev.map(std => {
+      const sp = studentMap.get(std.id);
+      if (!sp) return std;
+
+      return {
+        ...std,
+        classGrade: sp.targetClass,
+        academicYear: options.targetYear,
+        status: sp.status || std.status
+      };
+    }));
+
+    // Record promotion history
+    const newPromo: PromotionRecord = {
+      id: `promo-${Date.now()}`,
+      date: new Date().toISOString(),
+      sourceAcademicYear: options.sourceYear,
+      targetAcademicYear: options.targetYear,
+      sourceClass: options.sourceClass,
+      targetClass: options.targetClass,
+      promotedCount,
+      retainedCount,
+      graduatedCount,
+      promotedStudentIds: promotedIds,
+      performedBy: currentUser?.name || 'Super Admin',
+      branchId: currentBranchId === 'all' ? 'fbis-02' : currentBranchId,
+      notes: options.notes
+    };
+
+    setPromotions(prev => [newPromo, ...prev]);
+
+    return { success: true, count: options.studentPromotions.length };
+  };
+
+  const promoteSingleStudent = (
+    studentId: string,
+    targetClass: string,
+    targetYear: string,
+    status?: 'active' | 'graduated' | 'suspended'
+  ) => {
+    setStudents(prev => prev.map(std => {
+      if (std.id !== studentId) return std;
+      return {
+        ...std,
+        classGrade: targetClass,
+        academicYear: targetYear,
+        status: status || std.status
+      };
+    }));
+
+    const std = students.find(s => s.id === studentId);
+    if (std) {
+      const isGraduated = status === 'graduated';
+      const isRetained = targetClass === std.classGrade;
+      const newPromo: PromotionRecord = {
+        id: `promo-${Date.now()}`,
+        date: new Date().toISOString(),
+        sourceAcademicYear: std.academicYear || '2025-2026',
+        targetAcademicYear: targetYear,
+        sourceClass: std.classGrade,
+        targetClass: targetClass,
+        promotedCount: !isGraduated && !isRetained ? 1 : 0,
+        retainedCount: isRetained ? 1 : 0,
+        graduatedCount: isGraduated ? 1 : 0,
+        promotedStudentIds: [studentId],
+        performedBy: currentUser?.name || 'Academic Staff',
+        branchId: std.branchId || (currentBranchId === 'all' ? 'fbis-02' : currentBranchId),
+        notes: `បានឡើងថ្នាក់សិស្សទោល ${std.nameKhmer} (${std.studentCode})`
+      };
+      setPromotions(prev => [newPromo, ...prev]);
+    }
+
+    return true;
   };
 
   // Payments CRUD
@@ -1172,6 +1337,10 @@ export const SchoolProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         updateStudent,
         deleteStudent,
         getStudentById,
+        promotions,
+        branchPromotions,
+        promoteStudents,
+        promoteSingleStudent,
         callNotes,
         branchCallNotes,
         addCallNote,

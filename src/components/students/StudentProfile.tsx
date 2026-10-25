@@ -6,6 +6,7 @@ import { InvoicePrintModal } from '../finance/InvoicePrintModal';
 import { ReportCardPrintModal } from '../academic/ReportCardPrintModal';
 import { CallNotesModal } from './CallNotesModal';
 import { AdmissionFormModal } from './AdmissionFormModal';
+import { SinglePromoteModal } from './SinglePromoteModal';
 import { 
   ArrowLeft, 
   User, 
@@ -25,7 +26,8 @@ import {
   PhoneCall,
   Clock,
   Trash2,
-  FileText
+  FileText,
+  TrendingUp
 } from 'lucide-react';
 
 export const StudentProfile: React.FC = () => {
@@ -51,6 +53,7 @@ export const StudentProfile: React.FC = () => {
   const [selectedInvoiceForPrint, setSelectedInvoiceForPrint] = useState<any>(null);
   const [selectedAcademicRecordForPrint, setSelectedAcademicRecordForPrint] = useState<any>(null);
   const [isAdmissionFormOpen, setIsAdmissionFormOpen] = useState(false);
+  const [isPromoteModalOpen, setIsPromoteModalOpen] = useState(false);
 
   const student = selectedStudentId ? getStudentById(selectedStudentId) : null;
 
@@ -251,6 +254,15 @@ export const StudentProfile: React.FC = () => {
                 >
                   <FileText className="w-3.5 h-3.5" />
                   <span>ពាក្យសុំចូលរៀន (Admission Form)</span>
+                </button>
+
+                <button
+                  onClick={() => setIsPromoteModalOpen(true)}
+                  className="px-3.5 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-lg shadow-2xs transition-colors flex items-center gap-1.5 cursor-pointer"
+                  title="ឡើងថ្នាក់សិស្ស (Promote / Advance Student)"
+                >
+                  <TrendingUp className="w-3.5 h-3.5" />
+                  <span>ឡើងថ្នាក់ (Promote)</span>
                 </button>
 
                 <button
@@ -883,6 +895,13 @@ export const StudentProfile: React.FC = () => {
         isOpen={isAdmissionFormOpen}
         initialStudent={student}
         onClose={() => setIsAdmissionFormOpen(false)}
+      />
+
+      {/* Single Student Promote Modal */}
+      <SinglePromoteModal
+        isOpen={isPromoteModalOpen}
+        student={student}
+        onClose={() => setIsPromoteModalOpen(false)}
       />
     </div>
   );

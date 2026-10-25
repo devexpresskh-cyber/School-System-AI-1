@@ -6,16 +6,14 @@ import {
   FileSpreadsheet, 
   Search, 
   Filter, 
-  Plus, 
-  PhoneCall, 
   CreditCard, 
   Calendar, 
   CheckCircle2, 
   Clock, 
-  ChevronRight,
   Download,
   Building,
-  RefreshCw
+  RefreshCw,
+  Edit2
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 
@@ -29,8 +27,6 @@ export const DueReportsMatrix: React.FC = () => {
     branchEnglishDueRecords,
     updateKhmerDueRecord,
     updateEnglishDueRecord,
-    addKhmerDueRecord,
-    addEnglishDueRecord,
     students,
     setSelectedStudentId,
     setActiveTab,
@@ -40,9 +36,9 @@ export const DueReportsMatrix: React.FC = () => {
   const [activeProgram, setActiveProgram] = useState<'khmer' | 'english'>('khmer');
   const [search, setSearch] = useState('');
   const [selectedYear, setSelectedYear] = useState('2025-2026');
-  const [cutoffDateKhmer, setCutoffDateKhmer] = useState('៣១ ខែ ឧសភា ឆ្នាំ២០២៦');
-  const [isRecordModalOpen, setIsRecordModalOpen] = useState(false);
-  const [settleStudentTarget, setSettleStudentTarget] = useState<any>(null);
+  const [cutoffDateKhmer, setCutoffDateKhmer] = useState('៣១-ឧសភា-២០២៦');
+  const [selectedClassKhmer, setSelectedClassKhmer] = useState('ថ្នាក់ទី៧');
+  const [selectedClassEnglish, setSelectedClassEnglish] = useState('ថ្នាក់K1');
 
   // Filtered lists
   const filteredKhmer = branchKhmerDueRecords.filter(r => {
@@ -65,155 +61,232 @@ export const DueReportsMatrix: React.FC = () => {
 
   // Calculate Khmer Program Totals
   const khmerTotals = filteredKhmer.reduce((acc, r) => {
-    acc.fullTuition += r.fullTuition;
-    acc.amountPayable += r.amountPayable;
-    acc.incentive += r.incentive;
-    acc.transportPrev += r.previousMonthsDue.transport;
-    acc.servicesPrev += r.previousMonthsDue.services;
-    acc.totalPrev += r.previousMonthsDue.total;
-    acc.received1 += r.installment1?.amountReceived || 0;
-    acc.received2 += r.installment2?.amountReceived || 0;
-    acc.received3 += r.installment3?.amountReceived || 0;
-    acc.totalReceived += (r.installment1?.amountReceived || 0) + (r.installment2?.amountReceived || 0) + (r.installment3?.amountReceived || 0);
-    acc.balTransport += r.balanceDue.transport;
-    acc.balTransportPast += r.balanceDue.transportPastDue;
-    acc.balTuition += r.balanceDue.tuition;
-    acc.balTuitionPast += r.balanceDue.tuitionPastDue;
-    acc.balServices += r.balanceDue.services;
-    acc.balServicesPast += r.balanceDue.servicesPastDue;
-    acc.balTotal += r.balanceDue.total;
+    const full = r.fullTuition || 0;
+    const payable = r.amountPayable || 0;
+    const pastYear = r.pastYearDue || 0;
+    const newYear = r.newYearDue || 0;
+    const beg = r.beginningBalanceDue || 0;
+    const paid1 = r.installment1?.amountReceived || 0;
+    const paid2 = r.installment2?.amountReceived || 0;
+    const paid3 = r.installment3?.amountReceived || 0;
+    const paidSem2 = r.semester2Payment?.amountReceived || 0;
+    const totPaid = r.totalPaid ?? (paid1 + paid2 + paid3 + paidSem2);
+    const endSem1 = r.endingDue?.semester1 || 0;
+    const endSem2 = r.endingDue?.semester2 || 0;
+    const endPastYear = r.endingDue?.pastYear || 0;
+    const endTot = r.endingDue?.total || (endSem1 + endSem2 + endPastYear);
+
+    acc.fullTuition += full;
+    acc.amountPayable += payable;
+    acc.pastYearDue += pastYear;
+    acc.newYearDue += newYear;
+    acc.beginningBalanceDue += beg;
+    acc.installment1 += paid1;
+    acc.installment2 += paid2;
+    acc.installment3 += paid3;
+    acc.semester2 += paidSem2;
+    acc.totalPaid += totPaid;
+    acc.endingSem1 += endSem1;
+    acc.endingSem2 += endSem2;
+    acc.endingPastYear += endPastYear;
+    acc.endingTotal += endTot;
     return acc;
   }, {
     fullTuition: 0,
     amountPayable: 0,
-    incentive: 0,
-    transportPrev: 0,
-    servicesPrev: 0,
-    totalPrev: 0,
-    received1: 0,
-    received2: 0,
-    received3: 0,
-    totalReceived: 0,
-    balTransport: 0,
-    balTransportPast: 0,
-    balTuition: 0,
-    balTuitionPast: 0,
-    balServices: 0,
-    balServicesPast: 0,
-    balTotal: 0
+    pastYearDue: 0,
+    newYearDue: 0,
+    beginningBalanceDue: 0,
+    installment1: 0,
+    installment2: 0,
+    installment3: 0,
+    semester2: 0,
+    totalPaid: 0,
+    endingSem1: 0,
+    endingSem2: 0,
+    endingPastYear: 0,
+    endingTotal: 0
   });
 
   // Calculate English Program Totals
   const englishTotals = filteredEnglish.reduce((acc, r) => {
-    acc.fullTuition += r.fullTuition;
-    acc.payTuition += r.amountPayable.tuition;
-    acc.payServices += r.amountPayable.services;
-    acc.prevTuition += r.previousMonthsDue.tuition;
-    acc.prevServices += r.previousMonthsDue.services;
-    acc.paidTuition1 += r.actualPayment.tuition.installment1?.amountReceived || 0;
-    acc.paidTuition2 += r.actualPayment.tuition.installment2?.amountReceived || 0;
-    acc.paidServices1 += r.actualPayment.services.installment1?.amountReceived || 0;
-    acc.endTuition += r.endingBalance.tuition;
-    acc.endServices += r.endingBalance.services;
-    acc.remPrevTuition += r.remainingPreviousDue.tuition;
-    acc.remPrevServices += r.remainingPreviousDue.services;
-    acc.actTuition += r.actualArrears.tuition;
-    acc.actServices += r.actualArrears.services;
-    acc.totTuition += r.totalDue.tuition;
-    acc.totServices += r.totalDue.services;
-    acc.grandTotal += r.totalDue.total;
+    acc.fullTuition += r.fullTuition || 0;
+    acc.annualIncentive += r.annualIncentive || 0;
+    acc.incentive += r.incentive || 0;
+    acc.amountPayableTuition += r.amountPayableTuition || 0;
+    
+    // Past Year
+    acc.pastYearTuition += r.pastYearDue?.tuition || 0;
+    acc.pastYearAdmin += r.pastYearDue?.adminFee || 0;
+
+    // Beginning Quarters
+    acc.begQ1Tuition += r.beginningQuarterDue?.q1?.tuition || 0;
+    acc.begQ1Admin += r.beginningQuarterDue?.q1?.adminFee || 0;
+    acc.begQ2Tuition += r.beginningQuarterDue?.q2?.tuition || 0;
+    acc.begQ2Admin += r.beginningQuarterDue?.q2?.adminFee || 0;
+    acc.begQ3Tuition += r.beginningQuarterDue?.q3?.tuition || 0;
+    acc.begQ3Admin += r.beginningQuarterDue?.q3?.adminFee || 0;
+    acc.begQ4Tuition += r.beginningQuarterDue?.q4?.tuition || 0;
+    acc.begQ4Admin += r.beginningQuarterDue?.q4?.adminFee || 0;
+    acc.begNewYearTuition += r.beginningQuarterDue?.newYearTotal?.tuition || 0;
+    acc.begNewYearAdmin += r.beginningQuarterDue?.newYearTotal?.adminFee || 0;
+
+    // Payments
+    acc.inst1Tuition += r.installment1?.amountTuition || 0;
+    acc.inst1Admin += r.installment1?.amountAdmin || 0;
+    acc.inst2Tuition += r.installment2?.amountTuition || 0;
+    acc.inst2Admin += r.installment2?.amountAdmin || 0;
+    acc.totPaidTuition += r.totalPaid?.tuition || (r.installment1?.amountTuition || 0) + (r.installment2?.amountTuition || 0);
+    acc.totPaidAdmin += r.totalPaid?.adminFee || (r.installment1?.amountAdmin || 0) + (r.installment2?.amountAdmin || 0);
+    acc.paymentCount += r.paymentCount || 0;
+
+    // Ending Quarters
+    acc.endPastYearTuition += r.endingQuarterDue?.pastYear?.tuition || 0;
+    acc.endPastYearAdmin += r.endingQuarterDue?.pastYear?.adminFee || 0;
+    acc.endQ1Tuition += r.endingQuarterDue?.q1?.tuition || 0;
+    acc.endQ1Admin += r.endingQuarterDue?.q1?.adminFee || 0;
+    acc.endQ2Tuition += r.endingQuarterDue?.q2?.tuition || 0;
+    acc.endQ2Admin += r.endingQuarterDue?.q2?.adminFee || 0;
+    acc.endQ3Tuition += r.endingQuarterDue?.q3?.tuition || 0;
+    acc.endQ3Admin += r.endingQuarterDue?.q3?.adminFee || 0;
+    acc.endQ4Tuition += r.endingQuarterDue?.q4?.tuition || 0;
+    acc.endQ4Admin += r.endingQuarterDue?.q4?.adminFee || 0;
+    acc.endTotalTuition += r.endingQuarterDue?.total?.tuition || 0;
+    acc.endTotalAdmin += r.endingQuarterDue?.total?.adminFee || 0;
+
     return acc;
   }, {
     fullTuition: 0,
-    payTuition: 0,
-    payServices: 0,
-    prevTuition: 0,
-    prevServices: 0,
-    paidTuition1: 0,
-    paidTuition2: 0,
-    paidServices1: 0,
-    endTuition: 0,
-    endServices: 0,
-    remPrevTuition: 0,
-    remPrevServices: 0,
-    actTuition: 0,
-    actServices: 0,
-    totTuition: 0,
-    totServices: 0,
-    grandTotal: 0
+    annualIncentive: 0,
+    incentive: 0,
+    amountPayableTuition: 0,
+    pastYearTuition: 0,
+    pastYearAdmin: 0,
+    begQ1Tuition: 0,
+    begQ1Admin: 0,
+    begQ2Tuition: 0,
+    begQ2Admin: 0,
+    begQ3Tuition: 0,
+    begQ3Admin: 0,
+    begQ4Tuition: 0,
+    begQ4Admin: 0,
+    begNewYearTuition: 0,
+    begNewYearAdmin: 0,
+    inst1Tuition: 0,
+    inst1Admin: 0,
+    inst2Tuition: 0,
+    inst2Admin: 0,
+    totPaidTuition: 0,
+    totPaidAdmin: 0,
+    paymentCount: 0,
+    endPastYearTuition: 0,
+    endPastYearAdmin: 0,
+    endQ1Tuition: 0,
+    endQ1Admin: 0,
+    endQ2Tuition: 0,
+    endQ2Admin: 0,
+    endQ3Tuition: 0,
+    endQ3Admin: 0,
+    endQ4Tuition: 0,
+    endQ4Admin: 0,
+    endTotalTuition: 0,
+    endTotalAdmin: 0
   });
 
   // Export to Excel for Khmer Program
   const handleExportKhmerExcel = () => {
     const data = filteredKhmer.map(r => ({
-      'ល.រ': r.no,
+      'ល-រ': r.no,
       'អត្តលេខសិស្ស': r.studentCode,
-      'ឈ្មោះសិស្សជាភាសាខ្មែរ': r.nameKhmer,
-      'ឈ្មោះជាអក្សរឡាតាំង': r.nameEnglish,
+      'ឈ្មោះជាភាសាខ្មែរ': r.nameKhmer,
+      'ឈ្មោះជាភាសាឡាតាំង': r.nameEnglish,
       'ភេទ': r.gender,
       'ថ្ងៃខែឆ្នាំកំណើត': r.dob,
       'ឆ្នាំសិក្សា': r.academicYear,
       'ស្ថានភាព': r.status,
-      'ថ្លៃឈ្នួលសិក្សាពេញ ($)': r.fullTuition,
+      'ថ្លៃឈ្នួលសិក្សា១ឆ្នាំ': r.fullTuition,
       'បញ្ចុះតម្លៃ (%)': r.discountPercent ? `${r.discountPercent}%` : '',
-      'បញ្ចុះតម្លៃ ($)': r.discountAmount ? `$${r.discountAmount}` : '',
-      'លើកទឹកចិត្ត ($)': r.incentive || 0,
-      'ទឹកប្រាក់ត្រូវបង់ ($)': r.amountPayable,
-      'ជំពាក់ខែមុន-ដឹកជញ្ជូន': r.previousMonthsDue.transport,
-      'ជំពាក់ខែមុន-សេវាផ្សេងៗ': r.previousMonthsDue.services,
-      'ជំពាក់ខែមុន-សរុប': r.previousMonthsDue.total,
-      'លើកទី១-កាលបរិច្ឆេទ': r.installment1?.date || '',
-      'លើកទី១-លេខវិក្កយបត្រ': r.installment1?.invoiceNo || '',
-      'លើកទី១-ទឹកប្រាក់': r.installment1?.amountReceived || 0,
-      'នៅខ្វះ-ដឹកជញ្ជូន': r.balanceDue.transport,
-      'នៅខ្វះ-ថ្លៃសិក្សា': r.balanceDue.tuition,
-      'នៅខ្វះ-សេវាផ្សេងៗ': r.balanceDue.services,
-      'ទឹកប្រាក់នៅខ្វះសរុប ($)': r.balanceDue.total
+      'បញ្ចុះតម្លៃ ($)': r.incentive ? `$${r.incentive}` : '',
+      'ទឹកប្រាក់ត្រូវបង់': r.amountPayable,
+      'ទឹកប្រាក់ជំពាក់ឆ្នាំសិក្សាចាស់': r.pastYearDue || 0,
+      'ទឹកប្រាក់ជំពាក់ឆ្នាំថ្មី': r.newYearDue || 0,
+      'ទឹកប្រាក់ជំពាក់ដើមត្រា': r.beginningBalanceDue || 0,
+      'ឆមាស១-លើកទី១-កាលបរិច្ឆេទ': r.installment1?.date || '',
+      'ឆមាស១-លើកទី១-វិក្កយបត្រ': r.installment1?.invoiceNo || '',
+      'ឆមាស១-លើកទី១-ទឹកប្រាក់': r.installment1?.amountReceived || 0,
+      'ឆមាស១-លើកទី២-កាលបរិច្ឆេទ': r.installment2?.date || '',
+      'ឆមាស១-លើកទី២-វិក្កយបត្រ': r.installment2?.invoiceNo || '',
+      'ឆមាស១-លើកទី២-ទឹកប្រាក់': r.installment2?.amountReceived || 0,
+      'ឆមាស១-លើកទី៣-កាលបរិច្ឆេទ': r.installment3?.date || '',
+      'ឆមាស១-លើកទី៣-វិក្កយបត្រ': r.installment3?.invoiceNo || '',
+      'ឆមាស១-លើកទី៣-ទឹកប្រាក់': r.installment3?.amountReceived || 0,
+      'ឆមាស២-កាលបរិច្ឆេទ': r.semester2Payment?.date || '',
+      'ឆមាស២-វិក្កយបត្រ': r.semester2Payment?.invoiceNo || '',
+      'ឆមាស២-ទឹកប្រាក់': r.semester2Payment?.amountReceived || 0,
+      'ទឹកប្រាក់បានបង់សរុប': r.totalPaid ?? ((r.installment1?.amountReceived || 0) + (r.installment2?.amountReceived || 0) + (r.installment3?.amountReceived || 0) + (r.semester2Payment?.amountReceived || 0)),
+      'ជំពាក់ចុងត្រា-ឆមាស១': r.endingDue?.semester1 || 0,
+      'ជំពាក់ចុងត្រា-ឆមាស២': r.endingDue?.semester2 || 0,
+      'ជំពាក់ចុងត្រា-ឆ្នាំចាស់': r.endingDue?.pastYear || 0,
+      'ទឹកប្រាក់ជំពាក់ចុងត្រាសរុប': r.endingDue?.total || 0
     }));
 
     const worksheet = XLSX.utils.json_to_sheet(data);
     const workbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(workbook, worksheet, 'Khmer Due Report');
-    XLSX.writeFile(workbook, `FBIS_Khmer_Program_Due_Report_${selectedBranch.code}_${new Date().toISOString().split('T')[0]}.xlsx`);
+    XLSX.writeFile(workbook, `FBIS_Khmer_Program_Grade7_Due_Report_${new Date().toISOString().split('T')[0]}.xlsx`);
   };
 
   // Export to Excel for English Program
   const handleExportEnglishExcel = () => {
     const data = filteredEnglish.map(r => ({
-      'ល.រ': r.no,
+      'ល-រ': r.no,
       'អត្តលេខសិស្ស': r.studentCode,
-      'ឈ្មោះសិស្សជាភាសាខ្មែរ': r.nameKhmer,
-      'ឈ្មោះជាអក្សរឡាតាំង': r.nameEnglish,
+      'ឈ្មោះ ជាភាសាខ្មែរ': r.nameKhmer,
+      'ឈ្មោះ ជាភាសាឡាតាំង': r.nameEnglish,
       'ភេទ': r.gender,
-      'ថ្ងៃខែឆ្នាំកំណើត': r.dob,
+      'ថ្ងៃ ខែ ឆ្នាំកំណើត': r.dob,
       'ឆ្នាំសិក្សា': r.academicYear,
       'ស្ថានភាព': r.status,
-      'ថ្លៃឈ្នួលសិក្សាពេញ ($)': r.fullTuition,
-      'បញ្ចុះតម្លៃ (%)': `${r.discountPercent}%`,
-      'លើកទឹកចិត្ត ($)': r.incentive,
-      'ត្រូវបង់-ថ្លៃសិក្សា ($)': r.amountPayable.tuition,
-      'ត្រូវបង់-សេវាផ្សេងៗ ($)': r.amountPayable.services,
-      'ជំពាក់ខែមុន-ថ្លៃសិក្សា': r.previousMonthsDue.tuition,
-      'ជំពាក់ខែមុន-សេវាផ្សេងៗ': r.previousMonthsDue.services,
-      'បង់ជាក់ស្តែង-ថ្លៃសិក្សា លើកទី១ (ថ្ងៃ)': r.actualPayment.tuition.installment1?.date || '',
-      'បង់ជាក់ស្តែង-ថ្លៃសិក្សា លើកទី១ (វិក្កយបត្រ)': r.actualPayment.tuition.installment1?.invoiceNo || '',
-      'បង់ជាក់ស្តែង-ថ្លៃសិក្សា លើកទី១ ($)': r.actualPayment.tuition.installment1?.amountReceived || 0,
-      'បង់ជាក់ស្តែង-សេវា លើកទី១ (ថ្ងៃ)': r.actualPayment.services.installment1?.date || '',
-      'បង់ជាក់ស្តែង-សេវា លើកទី១ (វិក្កយបត្រ)': r.actualPayment.services.installment1?.invoiceNo || '',
-      'បង់ជាក់ស្តែង-សេវា លើកទី១ ($)': r.actualPayment.services.installment1?.amountReceived || 0,
-      'សល់ចុងគ្រា-ថ្លៃសិក្សា': r.endingBalance.tuition,
-      'សល់ចុងគ្រា-សេវា': r.endingBalance.services,
-      'ជំពាក់ជាក់ស្តែង-ថ្លៃសិក្សា': r.actualArrears.tuition,
-      'ជំពាក់ជាក់ស្តែង-សេវា': r.actualArrears.services,
-      'ត្រូវបង់សរុប-ថ្លៃសិក្សា': r.totalDue.tuition,
-      'ត្រូវបង់សរុប-សេវា': r.totalDue.services,
-      'ទឹកប្រាក់ត្រូវបង់សរុប ($)': r.totalDue.total
+      'ថ្លៃឈ្នួលសិក្សា១ឆ្នាំ': r.fullTuition,
+      'បញ្ចុះតម្លៃ ក្នុង១ឆ្នាំ (%)': `${r.discountPercent}%`,
+      'បញ្ចុះតម្លៃ ការលើកទឹកចិត្ត ($)': r.annualIncentive || 0,
+      'ការលើកទឹកចិត្ត ($)': r.incentive || 0,
+      'ទឹកប្រាក់ត្រូវបង់': r.amountPayableTuition,
+      'ជំពាក់ឆ្នាំចាស់-ថ្លៃឈ្នួលសិក្សា': r.pastYearDue?.tuition || 0,
+      'ជំពាក់ឆ្នាំចាស់-សេវារដ្ឋបាល': r.pastYearDue?.adminFee || 0,
+      'ជំពាក់ដើមត្រីមាស-Q1-ថ្លៃសិក្សា': r.beginningQuarterDue?.q1?.tuition || 0,
+      'ជំពាក់ដើមត្រីមាស-Q1-សេវា': r.beginningQuarterDue?.q1?.adminFee || 0,
+      'ជំពាក់ដើមត្រីមាស-Q2-ថ្លៃសិក្សា': r.beginningQuarterDue?.q2?.tuition || 0,
+      'ជំពាក់ដើមត្រីមាស-Q2-សេវា': r.beginningQuarterDue?.q2?.adminFee || 0,
+      'ជំពាក់ដើមត្រីមាស-Q3-ថ្លៃសិក្សា': r.beginningQuarterDue?.q3?.tuition || 0,
+      'ជំពាក់ដើមត្រីមាស-Q3-សេវា': r.beginningQuarterDue?.q3?.adminFee || 0,
+      'ជំពាក់ដើមត្រីមាស-Q4-ថ្លៃសិក្សា': r.beginningQuarterDue?.q4?.tuition || 0,
+      'ជំពាក់ដើមត្រីមាស-Q4-សេវា': r.beginningQuarterDue?.q4?.adminFee || 0,
+      'ជំពាក់ឆ្នាំថ្មី-សរុបថ្លៃសិក្សា': r.beginningQuarterDue?.newYearTotal?.tuition || 0,
+      'ជំពាក់ឆ្នាំថ្មី-សរុបសេវា': r.beginningQuarterDue?.newYearTotal?.adminFee || 0,
+      'លើកទី១-កាលបរិច្ឆេទ': r.installment1?.date || '',
+      'លើកទី១-វិក្កយបត្រសិក្សា': r.installment1?.invoiceNoTuition || r.installment1?.invoiceNo || '',
+      'លើកទី១-ទឹកប្រាក់សិក្សា': r.installment1?.amountTuition || 0,
+      'លើកទី១-វិក្កយបត្រសេវា': r.installment1?.invoiceNoAdmin || '',
+      'លើកទី១-ទឹកប្រាក់សេវា': r.installment1?.amountAdmin || 0,
+      'ទឹកប្រាក់បានបង់សរុប-ថ្លៃសិក្សា': r.totalPaid?.tuition || 0,
+      'ទឹកប្រាក់បានបង់សរុប-សេវា': r.totalPaid?.adminFee || 0,
+      'ចំនួនដង': r.paymentCount || 0,
+      'ជំពាក់ចុងត្រីមាស-Q1-ថ្លៃសិក្សា': r.endingQuarterDue?.q1?.tuition || 0,
+      'ជំពាក់ចុងត្រីមាស-Q2-ថ្លៃសិក្សា': r.endingQuarterDue?.q2?.tuition || 0,
+      'ជំពាក់ចុងត្រីមាស-Q2-សេវា': r.endingQuarterDue?.q2?.adminFee || 0,
+      'ជំពាក់ចុងត្រីមាស-Q3-ថ្លៃសិក្សា': r.endingQuarterDue?.q3?.tuition || 0,
+      'ជំពាក់ចុងត្រីមាស-Q3-សេវា': r.endingQuarterDue?.q3?.adminFee || 0,
+      'ជំពាក់ចុងត្រីមាស-Q4-ថ្លៃសិក្សា': r.endingQuarterDue?.q4?.tuition || 0,
+      'ជំពាក់ចុងត្រីមាស-Q4-សេវា': r.endingQuarterDue?.q4?.adminFee || 0,
+      'ជំពាក់ចុងត្រីមាសសរុប-ថ្លៃសិក្សា': r.endingQuarterDue?.total?.tuition || 0,
+      'ជំពាក់ចុងត្រីមាសសរុប-សេវា': r.endingQuarterDue?.total?.adminFee || 0
     }));
 
     const worksheet = XLSX.utils.json_to_sheet(data);
     const workbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(workbook, worksheet, 'English Due Report');
-    XLSX.writeFile(workbook, `FBIS_English_Program_Due_Report_${selectedBranch.code}_${new Date().toISOString().split('T')[0]}.xlsx`);
+    XLSX.writeFile(workbook, `FBIS_English_Program_K1_Due_Report_${new Date().toISOString().split('T')[0]}.xlsx`);
   };
 
   const handlePrint = () => {
@@ -230,15 +303,15 @@ export const DueReportsMatrix: React.FC = () => {
             onClick={() => setActiveProgram('khmer')}
             className={`px-4 py-2 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-2 ${
               activeProgram === 'khmer'
-                ? 'bg-amber-500 text-white shadow-xs'
+                ? 'bg-amber-600 text-white shadow-xs'
                 : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
             }`}
           >
             <span className="text-sm">🇰🇭</span>
             <div className="text-left">
-              <div className="font-khmer font-bold">កម្មវិធីភាសាខ្មែរ (Khmer Program)</div>
+              <div className="font-khmer font-bold">កម្មវិធីភាសាខ្មែរ (Khmer Program - Grade 7)</div>
               <div className="text-[10px] font-sans font-normal opacity-90">
-                {branchKhmerDueRecords.length} សិស្សត្រូវបង់ថ្លៃដឹកជញ្ជូន & ថ្លៃសិក្សា
+                {branchKhmerDueRecords.length} សិស្សជំពាក់ថ្លៃឈ្នួលសិក្សា តាមឆមាស & លើកបង់ប្រាក់
               </div>
             </div>
           </button>
@@ -254,9 +327,9 @@ export const DueReportsMatrix: React.FC = () => {
           >
             <span className="text-sm">🇬🇧</span>
             <div className="text-left">
-              <div className="font-khmer font-bold">កម្មវិធីភាសាអង់គ្លេស (English Program)</div>
+              <div className="font-khmer font-bold">កម្មវិធីភាសាអង់គ្លេស (English Program - K1)</div>
               <div className="text-[10px] font-sans font-normal opacity-90">
-                {branchEnglishDueRecords.length} សិស្សត្រូវបង់ប្រាក់រៀលប្រចាំឆមាស
+                {branchEnglishDueRecords.length} សិស្សជំពាក់ថ្លៃឈ្នួលសិក្សា & សេវារដ្ឋបាល តាមត្រីមាស
               </div>
             </div>
           </button>
@@ -301,23 +374,11 @@ export const DueReportsMatrix: React.FC = () => {
             <select
               value={selectedYear}
               onChange={(e) => setSelectedYear(e.target.value)}
-              className="h-8 px-2.5 text-xs border border-slate-300 rounded-md bg-white font-mono"
+              className="h-8 px-2 text-xs border border-slate-300 rounded-md bg-white font-khmer"
             >
-              <option value="2025-2026">2025-2026</option>
-              <option value="2026-2027">2026-2027</option>
-            </select>
-          </div>
-
-          <div className="flex items-center gap-1.5">
-            <span className="font-khmer text-slate-600">សាខា:</span>
-            <select
-              value={currentBranchId}
-              onChange={(e) => setCurrentBranchId(e.target.value)}
-              className="h-8 px-2.5 text-xs border border-slate-300 rounded-md bg-white font-khmer"
-            >
-              {branches.map(b => (
-                <option key={b.id} value={b.id}>{b.nameKhmer}</option>
-              ))}
+              <option value="2025-2026">២០២៥-២០២៦ (2025-2026)</option>
+              <option value="2026-2027">២០២៦-២០២៧ (2026-2027)</option>
+              <option value="2024-2025">២០២៤-២០២៥ (2024-2025)</option>
             </select>
           </div>
 
@@ -327,7 +388,7 @@ export const DueReportsMatrix: React.FC = () => {
               type="text"
               value={cutoffDateKhmer}
               onChange={(e) => setCutoffDateKhmer(e.target.value)}
-              className="h-8 px-2.5 text-xs border border-slate-300 rounded-md bg-white font-khmer min-w-[170px]"
+              className="h-8 px-2.5 text-xs border border-slate-300 rounded-md bg-white font-khmer min-w-[150px]"
             />
           </div>
         </div>
@@ -338,276 +399,283 @@ export const DueReportsMatrix: React.FC = () => {
       </div>
 
       {/* ========================================================================= */}
-      {/* 🇰🇭 KHMER PROGRAM DUE REPORT (REFERENCING SCREENSHOT 1)                    */}
+      {/* 🇰🇭 KHMER PROGRAM DUE REPORT (CORRECTED REFERRING TO ORIGINAL PDF 2)        */}
       {/* ========================================================================= */}
       {activeProgram === 'khmer' && (
         <div className="bg-white rounded-xl shadow-xs border border-slate-300 p-4 overflow-hidden print:p-0 print:border-none print:shadow-none">
           {/* Official Report Header */}
           <div className="text-center mb-4">
             <h2 className="text-base sm:text-lg font-black font-khmer text-slate-900 tracking-wide">
-              បញ្ជីឈ្មោះសិស្សត្រូវបង់ថ្លៃ ដឹកជញ្ជូន និង ថ្លៃសិក្សា ឆ្នាំសិក្សា{selectedYear} {selectedBranch.nameKhmer}
+              បញ្ជីឈ្មោះសិស្ស{selectedClassKhmer} ជំពាក់ថ្លៃឈ្នួលសិក្សា ឆ្នាំសិក្សា{selectedYear} {selectedBranch.nameKhmer}
             </h2>
             <p className="text-xs font-khmer text-slate-700 mt-0.5">
-              គិតដល់ត្រឹមថ្ងៃទី {cutoffDateKhmer}
+              គិតដល់ត្រឹម ថ្ងៃទី{cutoffDateKhmer}
             </p>
           </div>
 
-          {/* Yellow Matrix Table */}
+          {/* Yellow Matrix Table Matching Original PDF 2 */}
           <div className="overflow-x-auto border border-slate-400">
-            <table className="w-full text-left text-[10.5px] border-collapse whitespace-nowrap">
-              {/* Header Rows Matching Screenshot 1 with Yellow Theme */}
+            <table className="w-full text-left text-[10px] border-collapse whitespace-nowrap">
+              {/* Header Rows Matching Original Khmer PDF 2 with Yellow Theme */}
               <thead className="bg-[#fff3a8] text-slate-900 font-semibold font-khmer text-center border-b border-slate-400">
-                <tr className="border-b border-slate-300">
-                  <th rowSpan={2} className="py-2 px-1.5 border-r border-slate-300 w-8">ល.រ</th>
-                  <th rowSpan={2} className="py-2 px-2 border-r border-slate-300">អត្តលេខសិស្ស</th>
-                  <th rowSpan={2} className="py-2 px-3 border-r border-slate-300">ឈ្មោះសិស្សជាភាសាខ្មែរ</th>
-                  <th rowSpan={2} className="py-2 px-3 border-r border-slate-300 font-sans">ឈ្មោះជាអក្សរឡាតាំង</th>
-                  <th rowSpan={2} className="py-2 px-1.5 border-r border-slate-300">ភេទ</th>
-                  <th rowSpan={2} className="py-2 px-2 border-r border-slate-300">ថ្ងៃខែឆ្នាំកំណើត</th>
-                  <th rowSpan={2} className="py-2 px-2 border-r border-slate-300">ឆ្នាំសិក្សា</th>
-                  <th rowSpan={2} className="py-2 px-2 border-r border-slate-300">ស្ថានភាព</th>
-                  <th rowSpan={2} className="py-2 px-2 border-r border-slate-300">ថ្លៃឈ្នួល<br/>សិក្សាពេញ</th>
-                  <th colSpan={2} className="py-1 px-2 border-r border-slate-300">បញ្ចុះតម្លៃសិស្ស</th>
-                  <th rowSpan={2} className="py-2 px-2 border-r border-slate-300">លើកទឹកចិត្ត</th>
-                  <th rowSpan={2} className="py-2 px-2 border-r border-slate-300 bg-amber-100">ទឹកប្រាក់ត្រូវបង់</th>
-                  <th rowSpan={2} className="py-2 px-1.5 border-r border-slate-300">ទឹកប្រាក់ជំពាក់<br/>ឆ្នាំចាស់</th>
-                  <th colSpan={3} className="py-1 px-2 border-r border-slate-300">ទឹកប្រាក់ជំពាក់ខែមុនៗ</th>
-                  <th colSpan={3} className="py-1 px-2 border-r border-slate-300 bg-blue-100/50">លើកទី១</th>
-                  <th colSpan={3} className="py-1 px-2 border-r border-slate-300">លើកទី២</th>
-                  <th colSpan={3} className="py-1 px-2 border-r border-slate-300">លើកទី៣</th>
-                  <th colSpan={7} className="py-1 px-2 bg-red-100/50 border-r border-slate-300">ទឹកប្រាក់នៅខ្វះ (Remaining Due)</th>
-                  <th rowSpan={2} className="no-print py-2 px-2 text-center">សកម្មភាព</th>
+                <tr className="border-b border-slate-400">
+                  <th rowSpan={2} className="py-2 px-1 border-r border-slate-400 w-7">ល-រ</th>
+                  <th rowSpan={2} className="py-2 px-1.5 border-r border-slate-400">អត្តលេខសិស្ស</th>
+                  <th rowSpan={2} className="py-2 px-2.5 border-r border-slate-400">ឈ្មោះជាភាសាខ្មែរ</th>
+                  <th rowSpan={2} className="py-2 px-2.5 border-r border-slate-400 font-sans">ឈ្មោះជាភាសាឡាតាំង</th>
+                  <th rowSpan={2} className="py-2 px-1 border-r border-slate-400">ភេទ</th>
+                  <th rowSpan={2} className="py-2 px-1.5 border-r border-slate-400">ថ្ងៃខែឆ្នាំកំណើត</th>
+                  <th rowSpan={2} className="py-2 px-1.5 border-r border-slate-400">ឆ្នាំសិក្សា</th>
+                  <th rowSpan={2} className="py-2 px-1.5 border-r border-slate-400">ស្ថានភាព</th>
+                  <th rowSpan={2} className="py-2 px-1.5 border-r border-slate-400">ថ្លៃឈ្នួល<br/>សិក្សា១ឆ្នាំ</th>
+                  <th colSpan={2} className="py-1 px-1 border-r border-slate-400">បញ្ចុះតម្លៃក្នុង១ឆ្នាំ</th>
+                  <th rowSpan={2} className="py-2 px-2 border-r border-slate-400 bg-amber-100/70 font-bold">ទឹកប្រាក់ត្រូវបង់</th>
+                  <th rowSpan={2} className="py-2 px-1 border-r border-slate-400">ទឹកប្រាក់ជំពាក់<br/>ឆ្នាំសិក្សាចាស់</th>
+                  <th rowSpan={2} className="py-2 px-1 border-r border-slate-400">ទឹកប្រាក់ជំពាក់<br/>ឆ្នាំថ្មី</th>
+                  <th rowSpan={2} className="py-2 px-1.5 border-r border-slate-400 font-bold">ទឹកប្រាក់ជំពាក់<br/>ដើមត្រា</th>
+                  <th colSpan={9} className="py-1 px-2 border-r border-slate-400 bg-sky-100/50">ឆមាសទី១</th>
+                  <th colSpan={3} className="py-1 px-2 border-r border-slate-400 bg-indigo-100/50">ឆមាសទី២</th>
+                  <th rowSpan={2} className="py-2 px-2 border-r border-slate-400 font-bold bg-emerald-100/60">ទឹកប្រាក់<br/>បានបង់សរុប</th>
+                  <th colSpan={4} className="py-1 px-2 border-r border-slate-400 bg-rose-100/50">ទឹកប្រាក់ជំពាក់ចុងត្រា</th>
+                  <th rowSpan={2} className="no-print py-2 px-1.5 text-center">សកម្មភាព</th>
                 </tr>
-                <tr className="text-[9.5px]">
-                  {/* បញ្ចុះតម្លៃសិស្ស */}
-                  <th className="py-1 px-1 border-r border-slate-300">%</th>
-                  <th className="py-1 px-1 border-r border-slate-300">$</th>
+                <tr className="text-[9px] border-b border-slate-400">
+                  {/* បញ្ចុះតម្លៃក្នុង១ឆ្នាំ */}
+                  <th className="py-1 px-1 border-r border-slate-400">%</th>
+                  <th className="py-1 px-1 border-r border-slate-400">លើកទឹកចិត្ត ($)</th>
 
-                  {/* ទឹកប្រាក់ជំពាក់ខែមុនៗ */}
-                  <th className="py-1 px-1.5 border-r border-slate-300">ដឹកជញ្ជូន</th>
-                  <th className="py-1 px-1.5 border-r border-slate-300">សេវាផ្សេងៗ</th>
-                  <th className="py-1 px-1.5 border-r border-slate-300">សរុប</th>
+                  {/* ឆមាសទី១ - លើកទី១ */}
+                  <th className="py-1 px-1 border-r border-slate-400">កាលបរិច្ឆេទបង់ប្រាក់</th>
+                  <th className="py-1 px-1.5 border-r border-slate-400 font-sans">លេខវិក្កយបត្រ</th>
+                  <th className="py-1 px-1 border-r border-slate-400 font-bold">ទឹកប្រាក់បានបង់</th>
 
-                  {/* លើកទី១ */}
-                  <th className="py-1 px-1.5 border-r border-slate-300">កាលបរិច្ឆេទ</th>
-                  <th className="py-1 px-2 border-r border-slate-300 font-sans">លេខវិក្កយបត្រ</th>
-                  <th className="py-1 px-1.5 border-r border-slate-300">ទឹកប្រាក់</th>
+                  {/* ឆមាសទី១ - លើកទី២ */}
+                  <th className="py-1 px-1 border-r border-slate-400">កាលបរិច្ឆេទបង់ប្រាក់</th>
+                  <th className="py-1 px-1.5 border-r border-slate-400 font-sans">លេខវិក្កយបត្រ</th>
+                  <th className="py-1 px-1 border-r border-slate-400 font-bold">ទឹកប្រាក់បានបង់</th>
 
-                  {/* លើកទី២ */}
-                  <th className="py-1 px-1.5 border-r border-slate-300">កាលបរិច្ឆេទ</th>
-                  <th className="py-1 px-2 border-r border-slate-300 font-sans">លេខវិក្កយបត្រ</th>
-                  <th className="py-1 px-1.5 border-r border-slate-300">ទឹកប្រាក់</th>
+                  {/* ឆមាសទី១ - លើកទី៣ */}
+                  <th className="py-1 px-1 border-r border-slate-400">កាលបរិច្ឆេទបង់ប្រាក់</th>
+                  <th className="py-1 px-1.5 border-r border-slate-400 font-sans">លេខវិក្កយបត្រ</th>
+                  <th className="py-1 px-1 border-r border-slate-400 font-bold">ទឹកប្រាក់បានបង់</th>
 
-                  {/* លើកទី៣ */}
-                  <th className="py-1 px-1.5 border-r border-slate-300">កាលបរិច្ឆេទ</th>
-                  <th className="py-1 px-2 border-r border-slate-300 font-sans">លេខវិក្កយបត្រ</th>
-                  <th className="py-1 px-1.5 border-r border-slate-300">ទឹកប្រាក់</th>
+                  {/* ឆមាសទី២ */}
+                  <th className="py-1 px-1 border-r border-slate-400">កាលបរិច្ឆេទបង់ប្រាក់</th>
+                  <th className="py-1 px-1.5 border-r border-slate-400 font-sans">លេខវិក្កយបត្រ</th>
+                  <th className="py-1 px-1 border-r border-slate-400 font-bold">ទឹកប្រាក់បានបង់</th>
 
-                  {/* ទឹកប្រាក់នៅខ្វះ */}
-                  <th className="py-1 px-1.5 border-r border-slate-300">ដឹកជញ្ជូន</th>
-                  <th className="py-1 px-1.5 border-r border-slate-300">ដឹកជញ្ជូនខែមុន</th>
-                  <th className="py-1 px-1.5 border-r border-slate-300">ថ្លៃសិក្សា</th>
-                  <th className="py-1 px-1.5 border-r border-slate-300">ថ្លៃសិក្សាខែមុន</th>
-                  <th className="py-1 px-1.5 border-r border-slate-300">សេវាផ្សេងៗ</th>
-                  <th className="py-1 px-1.5 border-r border-slate-300">ផ្សេងៗខែមុន</th>
-                  <th className="py-1 px-2 border-r border-slate-300 font-bold bg-red-100 text-red-900">សរុប</th>
+                  {/* ទឹកប្រាក់ជំពាក់ចុងត្រា */}
+                  <th className="py-1 px-1 border-r border-slate-400">ឆមាស១</th>
+                  <th className="py-1 px-1 border-r border-slate-400">ឆមាស២</th>
+                  <th className="py-1 px-1 border-r border-slate-400">ឆ្នាំចាស់</th>
+                  <th className="py-1 px-1.5 border-r border-slate-400 font-bold text-red-900 bg-rose-100">សរុប</th>
                 </tr>
               </thead>
 
               {/* Body Rows */}
               <tbody className="divide-y divide-slate-200 text-slate-800">
-                {filteredKhmer.map((r, index) => {
-                  const isOverdue = r.balanceDue.total > 0;
+                {filteredKhmer.map((r) => {
+                  const isPaid = (r.totalPaid || 0) > 0;
+                  const hasEndingDue = (r.endingDue?.total || 0) > 0;
                   return (
                     <tr 
                       key={r.id} 
-                      className={`hover:bg-amber-50/40 transition-colors ${
-                        r.studentCode === 'FBIS5402' ? 'bg-red-50/40 font-medium' : ''
+                      className={`hover:bg-amber-50/50 transition-colors ${
+                        hasEndingDue ? 'bg-rose-50/20' : ''
                       }`}
                     >
-                      <td className="py-1.5 px-1.5 text-center font-mono border-r border-slate-200">{r.no}</td>
-                      <td className="py-1.5 px-2 font-mono font-medium text-slate-900 border-r border-slate-200">
+                      <td className="py-1 px-1 text-center font-mono border-r border-slate-300">{r.no}</td>
+                      <td className="py-1 px-1.5 font-mono font-medium text-slate-900 border-r border-slate-300">
                         {r.studentCode}
                       </td>
-                      <td className="py-1.5 px-3 font-khmer font-bold text-slate-900 border-r border-slate-200">
+                      <td className="py-1 px-2 font-khmer font-bold text-slate-900 border-r border-slate-300">
                         {r.nameKhmer}
                       </td>
-                      <td className="py-1.5 px-3 font-sans text-slate-700 border-r border-slate-200">
+                      <td className="py-1 px-2 font-sans text-slate-700 border-r border-slate-300">
                         {r.nameEnglish}
                       </td>
-                      <td className="py-1.5 px-1.5 text-center font-khmer border-r border-slate-200">{r.gender}</td>
-                      <td className="py-1.5 px-2 font-mono text-[10px] text-slate-600 border-r border-slate-200">{r.dob}</td>
-                      <td className="py-1.5 px-2 font-mono text-[10px] text-center border-r border-slate-200">{r.academicYear}</td>
-                      <td className="py-1.5 px-2 font-khmer text-center text-slate-600 border-r border-slate-200">{r.status}</td>
-                      <td className="py-1.5 px-2 text-right font-mono font-medium border-r border-slate-200">
+                      <td className="py-1 px-1 text-center font-khmer border-r border-slate-300">{r.gender}</td>
+                      <td className="py-1 px-1.5 font-mono text-[9px] text-slate-600 border-r border-slate-300">{r.dob}</td>
+                      <td className="py-1 px-1 font-mono text-[9px] text-center border-r border-slate-300">{r.academicYear}</td>
+                      <td className="py-1 px-1.5 font-khmer text-center text-slate-600 border-r border-slate-300">{r.status}</td>
+                      <td className="py-1 px-1.5 text-right font-mono font-medium border-r border-slate-300">
                         ${r.fullTuition.toFixed(2)}
                       </td>
 
-                      {/* Discount % & $ */}
-                      <td className="py-1.5 px-1 text-center font-mono text-slate-700 border-r border-slate-200">
+                      {/* បញ្ចុះតម្លៃ % & លើកទឹកចិត្ត $ */}
+                      <td className="py-1 px-1 text-center font-mono text-slate-700 border-r border-slate-300">
                         {r.discountPercent ? `${r.discountPercent}%` : '-'}
                       </td>
-                      <td className="py-1.5 px-1 text-right font-mono text-slate-700 border-r border-slate-200">
-                        {r.discountAmount ? `$${r.discountAmount.toFixed(2)}` : '-'}
+                      <td className="py-1 px-1 text-right font-mono text-slate-700 border-r border-slate-300">
+                        {r.incentive ? `$ ${r.incentive.toFixed(2)}` : '-'}
                       </td>
 
-                      {/* Incentive */}
-                      <td className="py-1.5 px-2 text-right font-mono text-slate-700 border-r border-slate-200">
-                        {r.incentive ? `$${r.incentive.toFixed(2)}` : '-'}
+                      {/* ទឹកប្រាក់ត្រូវបង់ */}
+                      <td className="py-1 px-2 text-right font-mono font-bold text-slate-900 bg-amber-50/60 border-r border-slate-300">
+                        {r.amountPayable ? `$ ${r.amountPayable.toFixed(2)}` : '$ -'}
                       </td>
 
-                      {/* Amount Payable */}
-                      <td className="py-1.5 px-2 text-right font-mono font-bold text-slate-900 bg-amber-50/60 border-r border-slate-200">
-                        ${r.amountPayable.toFixed(2)}
+                      {/* ទឹកប្រាក់ជំពាក់ឆ្នាំចាស់ & ឆ្នាំថ្មី */}
+                      <td className="py-1 px-1 text-right font-mono text-slate-500 border-r border-slate-300">
+                        {r.pastYearDue ? `$ ${r.pastYearDue.toFixed(2)}` : '$ -'}
+                      </td>
+                      <td className="py-1 px-1 text-right font-mono text-slate-700 border-r border-slate-300">
+                        {r.newYearDue ? `$ ${r.newYearDue.toFixed(2)}` : '$ -'}
                       </td>
 
-                      {/* Past Year Due */}
-                      <td className="py-1.5 px-1.5 text-right font-mono text-slate-500 border-r border-slate-200">
-                        {r.pastYearDue ? `$${r.pastYearDue.toFixed(2)}` : '-'}
+                      {/* ទឹកប្រាក់ជំពាក់ដើមត្រា */}
+                      <td className="py-1 px-1.5 text-right font-mono font-semibold text-slate-900 border-r border-slate-300">
+                        {r.beginningBalanceDue ? `$ ${r.beginningBalanceDue.toFixed(2)}` : '$ -'}
                       </td>
 
-                      {/* Previous Months Due */}
-                      <td className="py-1.5 px-1.5 text-right font-mono text-slate-700 border-r border-slate-200">
-                        {r.previousMonthsDue.transport ? `$${r.previousMonthsDue.transport.toFixed(2)}` : '-'}
-                      </td>
-                      <td className="py-1.5 px-1.5 text-right font-mono text-slate-700 border-r border-slate-200">
-                        {r.previousMonthsDue.services ? `$${r.previousMonthsDue.services.toFixed(2)}` : '-'}
-                      </td>
-                      <td className="py-1.5 px-1.5 text-right font-mono font-semibold text-slate-900 border-r border-slate-200">
-                        {r.previousMonthsDue.total ? `$${r.previousMonthsDue.total.toFixed(2)}` : '-'}
-                      </td>
-
-                      {/* Installment 1 */}
-                      <td className="py-1.5 px-1.5 font-mono text-[9.5px] text-slate-600 border-r border-slate-200">
+                      {/* ឆមាសទី១ - លើកទី១ */}
+                      <td className="py-1 px-1 font-mono text-[9px] text-slate-600 border-r border-slate-300">
                         {r.installment1?.date || '-'}
                       </td>
-                      <td className="py-1.5 px-2 font-mono text-[9.5px] text-blue-700 border-r border-slate-200">
+                      <td className="py-1 px-1.5 font-mono text-[9px] text-blue-700 border-r border-slate-300">
                         {r.installment1?.invoiceNo || '-'}
                       </td>
-                      <td className="py-1.5 px-1.5 text-right font-mono font-medium text-emerald-700 border-r border-slate-200">
-                        {r.installment1?.amountReceived ? `$${r.installment1.amountReceived.toFixed(2)}` : '-'}
+                      <td className="py-1 px-1 text-right font-mono font-medium text-emerald-700 border-r border-slate-300">
+                        {r.installment1?.amountReceived ? `$ ${r.installment1.amountReceived.toFixed(2)}` : '$ -'}
                       </td>
 
-                      {/* Installment 2 */}
-                      <td className="py-1.5 px-1.5 font-mono text-[9.5px] text-slate-600 border-r border-slate-200">
+                      {/* ឆមាសទី១ - លើកទី២ */}
+                      <td className="py-1 px-1 font-mono text-[9px] text-slate-600 border-r border-slate-300">
                         {r.installment2?.date || '-'}
                       </td>
-                      <td className="py-1.5 px-2 font-mono text-[9.5px] text-blue-700 border-r border-slate-200">
+                      <td className="py-1 px-1.5 font-mono text-[9px] text-blue-700 border-r border-slate-300">
                         {r.installment2?.invoiceNo || '-'}
                       </td>
-                      <td className="py-1.5 px-1.5 text-right font-mono font-medium text-emerald-700 border-r border-slate-200">
-                        {r.installment2?.amountReceived ? `$${r.installment2.amountReceived.toFixed(2)}` : '-'}
+                      <td className="py-1 px-1 text-right font-mono font-medium text-emerald-700 border-r border-slate-300">
+                        {r.installment2?.amountReceived ? `$ ${r.installment2.amountReceived.toFixed(2)}` : '$ -'}
                       </td>
 
-                      {/* Installment 3 */}
-                      <td className="py-1.5 px-1.5 font-mono text-[9.5px] text-slate-600 border-r border-slate-200">
+                      {/* ឆមាសទី១ - លើកទី៣ */}
+                      <td className="py-1 px-1 font-mono text-[9px] text-slate-600 border-r border-slate-300">
                         {r.installment3?.date || '-'}
                       </td>
-                      <td className="py-1.5 px-2 font-mono text-[9.5px] text-blue-700 border-r border-slate-200">
+                      <td className="py-1 px-1.5 font-mono text-[9px] text-blue-700 border-r border-slate-300">
                         {r.installment3?.invoiceNo || '-'}
                       </td>
-                      <td className="py-1.5 px-1.5 text-right font-mono font-medium text-emerald-700 border-r border-slate-200">
-                        {r.installment3?.amountReceived ? `$${r.installment3.amountReceived.toFixed(2)}` : '-'}
+                      <td className="py-1 px-1 text-right font-mono font-medium text-emerald-700 border-r border-slate-300">
+                        {r.installment3?.amountReceived ? `$ ${r.installment3.amountReceived.toFixed(2)}` : '$ -'}
                       </td>
 
-                      {/* Remaining Balance Due Columns */}
-                      <td className="py-1.5 px-1.5 text-right font-mono text-slate-600 border-r border-slate-200">
-                        {r.balanceDue.transport ? `$${r.balanceDue.transport.toFixed(2)}` : '-'}
+                      {/* ឆមាសទី២ */}
+                      <td className="py-1 px-1 font-mono text-[9px] text-slate-600 border-r border-slate-300">
+                        {r.semester2Payment?.date || '-'}
                       </td>
-                      <td className="py-1.5 px-1.5 text-right font-mono text-slate-600 border-r border-slate-200">
-                        {r.balanceDue.transportPastDue ? `$${r.balanceDue.transportPastDue.toFixed(2)}` : '-'}
+                      <td className="py-1 px-1.5 font-mono text-[9px] text-blue-700 border-r border-slate-300">
+                        {r.semester2Payment?.invoiceNo || '-'}
                       </td>
-                      <td className="py-1.5 px-1.5 text-right font-mono font-medium text-red-700 border-r border-slate-200">
-                        {r.balanceDue.tuition ? `$${r.balanceDue.tuition.toFixed(2)}` : '-'}
+                      <td className="py-1 px-1 text-right font-mono font-medium text-emerald-700 border-r border-slate-300">
+                        {r.semester2Payment?.amountReceived ? `$ ${r.semester2Payment.amountReceived.toFixed(2)}` : '$ -'}
                       </td>
-                      <td className="py-1.5 px-1.5 text-right font-mono text-slate-600 border-r border-slate-200">
-                        {r.balanceDue.tuitionPastDue ? `$${r.balanceDue.tuitionPastDue.toFixed(2)}` : '-'}
+
+                      {/* ទឹកប្រាក់បានបង់សរុប */}
+                      <td className="py-1 px-2 text-right font-mono font-bold text-emerald-800 bg-emerald-50/50 border-r border-slate-300">
+                        {r.totalPaid ? `$ ${r.totalPaid.toFixed(2)}` : '$ -'}
                       </td>
-                      <td className="py-1.5 px-1.5 text-right font-mono text-slate-600 border-r border-slate-200">
-                        {r.balanceDue.services ? `$${r.balanceDue.services.toFixed(2)}` : '-'}
+
+                      {/* ទឹកប្រាក់ជំពាក់ចុងត្រា (ឆមាស១, ឆមាស២, ឆ្នាំចាស់, សរុប) */}
+                      <td className="py-1 px-1 text-right font-mono text-slate-700 border-r border-slate-300">
+                        {r.endingDue?.semester1 ? `$ ${r.endingDue.semester1.toFixed(2)}` : '$ -'}
                       </td>
-                      <td className="py-1.5 px-1.5 text-right font-mono text-slate-600 border-r border-slate-200">
-                        {r.balanceDue.servicesPastDue ? `$${r.balanceDue.servicesPastDue.toFixed(2)}` : '-'}
+                      <td className="py-1 px-1 text-right font-mono text-slate-700 border-r border-slate-300">
+                        {r.endingDue?.semester2 ? `$ ${r.endingDue.semester2.toFixed(2)}` : '$ -'}
                       </td>
-                      <td className="py-1.5 px-2 text-right font-mono font-bold text-red-700 bg-red-50/70 border-r border-slate-200">
-                        ${r.balanceDue.total.toFixed(2)}
+                      <td className="py-1 px-1 text-right font-mono text-slate-700 border-r border-slate-300">
+                        {r.endingDue?.pastYear ? `$ ${r.endingDue.pastYear.toFixed(2)}` : '$ -'}
+                      </td>
+                      <td className={`py-1 px-1.5 text-right font-mono font-bold border-r border-slate-300 ${
+                        (r.endingDue?.total || 0) > 0 ? 'text-red-700 bg-rose-50' : 'text-slate-400'
+                      }`}>
+                        {r.endingDue?.total ? `$ ${r.endingDue.total.toFixed(2)}` : '$ -'}
                       </td>
 
                       {/* Actions */}
-                      <td className="no-print py-1.5 px-2 text-center">
-                        <div className="flex items-center justify-center gap-1">
-                          <button
-                            title="Call Guardian / Note"
-                            onClick={() => setActiveTab('due-payments')}
-                            className="p-1 text-slate-500 hover:text-blue-600 hover:bg-slate-100 rounded cursor-pointer"
-                          >
-                            <PhoneCall className="w-3.5 h-3.5" />
-                          </button>
-                        </div>
+                      <td className="no-print py-1 px-1.5 text-center">
+                        <button
+                          onClick={() => {
+                            const found = students.find(s => s.studentCode === r.studentCode);
+                            if (found) {
+                              setSelectedStudentId(found.id);
+                              setActiveTab('student-profile');
+                            }
+                          }}
+                          className="px-2 py-0.5 bg-blue-50 hover:bg-blue-100 text-blue-700 text-[9px] font-semibold rounded cursor-pointer transition-colors"
+                          title="មើលប្រវត្តិរូបសិស្ស"
+                        >
+                          Profile
+                        </button>
                       </td>
                     </tr>
                   );
                 })}
               </tbody>
 
-              {/* Summary Total Row Matching Screenshot 1 */}
-              <tfoot className="bg-[#fff3a8] font-bold font-khmer text-slate-900 border-t-2 border-slate-400">
+              {/* Totals Footer Matching Screenshot & PDF 2 */}
+              <tfoot className="bg-[#fff3a8] font-bold text-slate-900 border-t-2 border-slate-400 font-khmer text-[9.5px]">
                 <tr>
-                  <td colSpan={8} className="py-2.5 px-3 text-center border-r border-slate-300">
-                    ទឹកប្រាក់សរុប (Grand Total)
+                  <td colSpan={8} className="py-2.5 px-3 text-center border-r border-slate-400 text-xs">
+                    ទឹកប្រាក់សរុប (Grand Total) ({filteredKhmer.length} សិស្ស)
                   </td>
-                  <td className="py-2.5 px-2 text-right font-mono border-r border-slate-300">
-                    ${khmerTotals.fullTuition.toFixed(2)}
+                  <td className="py-2.5 px-1.5 text-right font-mono border-r border-slate-400">
+                    ${khmerTotals.fullTuition.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                   </td>
-                  <td colSpan={2} className="py-2.5 px-1 border-r border-slate-300"></td>
-                  <td className="py-2.5 px-2 text-right font-mono border-r border-slate-300">
-                    ${khmerTotals.incentive.toFixed(2)}
+                  <td colSpan={2} className="py-2.5 px-1 text-center font-mono border-r border-slate-400">
+                    -
                   </td>
-                  <td className="py-2.5 px-2 text-right font-mono text-slate-950 bg-amber-200/60 border-r border-slate-300">
-                    ${khmerTotals.amountPayable.toFixed(2)}
+                  <td className="py-2.5 px-2 text-right font-mono bg-amber-200/70 border-r border-slate-400">
+                    ${khmerTotals.amountPayable.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                   </td>
-                  <td className="py-2.5 px-1.5 border-r border-slate-300"></td>
-                  <td className="py-2.5 px-1.5 text-right font-mono border-r border-slate-300">
-                    ${khmerTotals.transportPrev.toFixed(2)}
+                  <td className="py-2.5 px-1 text-right font-mono border-r border-slate-400">
+                    ${khmerTotals.pastYearDue.toFixed(2)}
                   </td>
-                  <td className="py-2.5 px-1.5 text-right font-mono border-r border-slate-300">
-                    ${khmerTotals.servicesPrev.toFixed(2)}
+                  <td className="py-2.5 px-1 text-right font-mono border-r border-slate-400">
+                    ${khmerTotals.newYearDue.toFixed(2)}
                   </td>
-                  <td className="py-2.5 px-1.5 text-right font-mono border-r border-slate-300">
-                    ${khmerTotals.totalPrev.toFixed(2)}
+                  <td className="py-2.5 px-1.5 text-right font-mono border-r border-slate-400">
+                    ${khmerTotals.beginningBalanceDue.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                   </td>
-                  <td colSpan={2} className="py-2.5 px-1 border-r border-slate-300"></td>
-                  <td className="py-2.5 px-1.5 text-right font-mono text-emerald-800 border-r border-slate-300">
-                    ${khmerTotals.received1.toFixed(2)}
+
+                  {/* ឆមាស១ */}
+                  <td colSpan={2} className="border-r border-slate-400"></td>
+                  <td className="py-2.5 px-1 text-right font-mono border-r border-slate-400">
+                    ${khmerTotals.installment1.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                   </td>
-                  <td colSpan={2} className="py-2.5 px-1 border-r border-slate-300"></td>
-                  <td className="py-2.5 px-1.5 text-right font-mono text-emerald-800 border-r border-slate-300">
-                    ${khmerTotals.received2.toFixed(2)}
+                  <td colSpan={2} className="border-r border-slate-400"></td>
+                  <td className="py-2.5 px-1 text-right font-mono border-r border-slate-400">
+                    ${khmerTotals.installment2.toFixed(2)}
                   </td>
-                  <td colSpan={2} className="py-2.5 px-1 border-r border-slate-300"></td>
-                  <td className="py-2.5 px-1.5 text-right font-mono text-emerald-800 border-r border-slate-300">
-                    ${khmerTotals.received3.toFixed(2)}
+                  <td colSpan={2} className="border-r border-slate-400"></td>
+                  <td className="py-2.5 px-1 text-right font-mono border-r border-slate-400">
+                    ${khmerTotals.installment3.toFixed(2)}
                   </td>
-                  <td className="py-2.5 px-1.5 text-right font-mono border-r border-slate-300">
-                    ${khmerTotals.balTransport.toFixed(2)}
+
+                  {/* ឆមាស២ */}
+                  <td colSpan={2} className="border-r border-slate-400"></td>
+                  <td className="py-2.5 px-1 text-right font-mono border-r border-slate-400">
+                    ${khmerTotals.semester2.toFixed(2)}
                   </td>
-                  <td className="py-2.5 px-1.5 text-right font-mono border-r border-slate-300">
-                    ${khmerTotals.balTransportPast.toFixed(2)}
+
+                  {/* ទឹកប្រាក់បានបង់សរុប */}
+                  <td className="py-2.5 px-2 text-right font-mono text-emerald-900 bg-emerald-200/80 border-r border-slate-400">
+                    ${khmerTotals.totalPaid.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                   </td>
-                  <td className="py-2.5 px-1.5 text-right font-mono text-red-900 border-r border-slate-300">
-                    ${khmerTotals.balTuition.toFixed(2)}
+
+                  {/* ទឹកប្រាក់ជំពាក់ចុងត្រា */}
+                  <td className="py-2.5 px-1 text-right font-mono border-r border-slate-400">
+                    ${khmerTotals.endingSem1.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                   </td>
-                  <td className="py-2.5 px-1.5 text-right font-mono border-r border-slate-300">
-                    ${khmerTotals.balTuitionPast.toFixed(2)}
+                  <td className="py-2.5 px-1 text-right font-mono border-r border-slate-400">
+                    ${khmerTotals.endingSem2.toFixed(2)}
                   </td>
-                  <td className="py-2.5 px-1.5 text-right font-mono border-r border-slate-300">
-                    ${khmerTotals.balServices.toFixed(2)}
+                  <td className="py-2.5 px-1 text-right font-mono border-r border-slate-400">
+                    ${khmerTotals.endingPastYear.toFixed(2)}
                   </td>
-                  <td className="py-2.5 px-1.5 text-right font-mono border-r border-slate-300">
-                    ${khmerTotals.balServicesPast.toFixed(2)}
-                  </td>
-                  <td className="py-2.5 px-2 text-right font-mono text-red-900 bg-red-200/80 border-r border-slate-300">
-                    ${khmerTotals.balTotal.toFixed(2)}
+                  <td className="py-2.5 px-1.5 text-right font-mono text-red-900 bg-rose-200/80 border-r border-slate-400">
+                    ${khmerTotals.endingTotal.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                   </td>
                   <td className="no-print"></td>
                 </tr>
@@ -615,284 +683,449 @@ export const DueReportsMatrix: React.FC = () => {
             </table>
           </div>
 
-          {/* Footer Signatures Matching Official Format */}
+          {/* Footer Signatures Matching Original PDF 2 */}
           <div className="mt-8 flex justify-between items-start text-xs font-khmer text-slate-800 px-8">
             <div className="text-center">
-              <p className="font-semibold">បានឃើញ និងឯកភាព</p>
-              <p className="font-bold text-slate-900 mt-0.5">នាយកសាលា</p>
-              <div className="h-16"></div>
-              <p className="font-semibold text-slate-900">លោក {selectedBranch.directorName}</p>
+              <p className="font-semibold">បានឃើញ និងពិនិត្យត្រឹមត្រូវ</p>
+              <p className="font-bold text-slate-900 mt-0.5">នាយកសាលា (School Director)</p>
+              <div className="h-16 flex items-center justify-center italic text-slate-400 text-[11px]">[ហត្ថលេខា]</div>
+              <p className="font-semibold text-slate-900">{selectedBranch.directorName}</p>
             </div>
 
             <div className="text-center">
-              <p className="font-semibold">ពិនិត្យដោយ</p>
-              <p className="font-bold text-slate-900 mt-0.5">ប្រធានគណនេយ្យ</p>
-              <div className="h-16"></div>
-              <p className="font-semibold text-slate-900">កែវ វិបុល</p>
-            </div>
-
-            <div className="text-center">
-              <p className="text-slate-600">ធ្វើនៅសៀមរាប, ថ្ងៃទី {cutoffDateKhmer}</p>
-              <p className="font-bold text-slate-900 mt-0.5">បេឡាករ / អ្នករៀបចំ</p>
-              <div className="h-16"></div>
-              <p className="font-semibold text-slate-900">ចាន់ សុផល</p>
+              <p className="text-slate-600">ខេត្តសៀមរាប ថ្ងៃទី០១ ខែមិថុនា ឆ្នាំ២០២៦</p>
+              <p className="font-bold text-slate-900 mt-0.5">បុគ្គលិកទទួលបន្ទុកបំណុល (Billing Officer)</p>
+              <div className="h-16 flex items-center justify-center italic text-slate-400 text-[11px]">[ហត្ថលេខា]</div>
+              <p className="font-semibold text-slate-900">ខុង សួស្តី</p>
             </div>
           </div>
         </div>
       )}
 
       {/* ========================================================================= */}
-      {/* 🇬🇧 ENGLISH PROGRAM DUE REPORT (REFERENCING SCREENSHOT 2)                  */}
+      {/* 🇬🇧 ENGLISH PROGRAM DUE REPORT (CORRECTED REFERRING TO ORIGINAL PDF 1)      */}
       {/* ========================================================================= */}
       {activeProgram === 'english' && (
         <div className="bg-white rounded-xl shadow-xs border border-slate-300 p-4 overflow-hidden print:p-0 print:border-none print:shadow-none">
           {/* Official Report Header */}
           <div className="text-center mb-4">
             <h2 className="text-base sm:text-lg font-black font-khmer text-slate-900 tracking-wide">
-              បញ្ជីឈ្មោះសិស្សត្រូវបង់ប្រាក់រៀលប្រចាំឆមាសសម្រាប់កម្មវិធីភាសាអង់គ្លេស(Primary) ជំនាន់ថ្មី ឆ្នាំសិក្សា{selectedYear} {selectedBranch.nameKhmer}
+              បញ្ជីឈ្មោះសិស្សកម្មវិធីបណ្តុះបណ្តាលភាសាអង់គ្លេស កម្រិត {selectedClassEnglish} ជំពាក់ថ្លៃឈ្នួលសិក្សា ឆ្នាំសិក្សា{selectedYear}
             </h2>
             <p className="text-xs font-khmer text-slate-700 mt-0.5">
-              គិតដល់ត្រឹមថ្ងៃទី {cutoffDateKhmer}
+              គិតដល់ត្រឹម ថ្ងៃទី{cutoffDateKhmer}
             </p>
           </div>
 
-          {/* Yellow Matrix Table for English Program */}
+          {/* Yellow Matrix Table for English Program Matching PDF 1 */}
           <div className="overflow-x-auto border border-slate-400">
-            <table className="w-full text-left text-[10.5px] border-collapse whitespace-nowrap">
-              {/* Header Rows Matching Screenshot 2 with Yellow Theme */}
+            <table className="w-full text-left text-[9.5px] border-collapse whitespace-nowrap">
+              {/* 3-Row Header Matching Original English PDF 1 */}
               <thead className="bg-[#fff3a8] text-slate-900 font-semibold font-khmer text-center border-b border-slate-400">
-                <tr className="border-b border-slate-300">
-                  <th rowSpan={2} className="py-2 px-1.5 border-r border-slate-300 w-8">ល.រ</th>
-                  <th rowSpan={2} className="py-2 px-2 border-r border-slate-300">អត្តលេខសិស្ស</th>
-                  <th rowSpan={2} className="py-2 px-3 border-r border-slate-300">ឈ្មោះសិស្សជាភាសាខ្មែរ</th>
-                  <th rowSpan={2} className="py-2 px-3 border-r border-slate-300 font-sans">ឈ្មោះជាអក្សរឡាតាំង</th>
-                  <th rowSpan={2} className="py-2 px-1.5 border-r border-slate-300">ភេទ</th>
-                  <th rowSpan={2} className="py-2 px-2 border-r border-slate-300">ថ្ងៃខែឆ្នាំកំណើត</th>
-                  <th rowSpan={2} className="py-2 px-2 border-r border-slate-300">ឆ្នាំសិក្សា</th>
-                  <th rowSpan={2} className="py-2 px-2 border-r border-slate-300">ស្ថានភាព</th>
-                  <th rowSpan={2} className="py-2 px-2 border-r border-slate-300">ថ្លៃឈ្នួល<br/>សិក្សាពេញ</th>
-                  <th rowSpan={2} className="py-2 px-1.5 border-r border-slate-300">បញ្ចុះតម្លៃ<br/>(%)</th>
-                  <th rowSpan={2} className="py-2 px-1.5 border-r border-slate-300">លើកទឹកចិត្ត<br/>($)</th>
-                  <th colSpan={2} className="py-1 px-2 border-r border-slate-300 bg-amber-100">ទឹកប្រាក់ត្រូវបង់</th>
-                  <th colSpan={2} className="py-1 px-2 border-r border-slate-300">ទឹកប្រាក់ជំពាក់ខែមុនៗ</th>
-                  <th colSpan={6} className="py-1 px-2 border-r border-slate-300 bg-blue-100/50">ព័ត៌មានការបង់ប្រាក់ជាក់ស្តែង (Actual Paid)</th>
-                  <th colSpan={2} className="py-1 px-2 border-r border-slate-300">ទឹកប្រាក់សល់ចុងគ្រា</th>
-                  <th colSpan={2} className="py-1 px-2 border-r border-slate-300">ទឹកប្រាក់ជំពាក់ខែមុននៅខ្វះ</th>
-                  <th colSpan={2} className="py-1 px-2 border-r border-slate-300">ទឹកប្រាក់ជំពាក់ជាក់ស្តែង</th>
-                  <th colSpan={3} className="py-1 px-2 bg-red-100/50 border-r border-slate-300">ទឹកប្រាក់ត្រូវបង់សរុប (Total Due)</th>
-                  <th rowSpan={2} className="no-print py-2 px-2 text-center">សកម្មភាព</th>
+                {/* Header Row 1 */}
+                <tr className="border-b border-slate-400">
+                  <th rowSpan={3} className="py-2 px-1 border-r border-slate-400 w-7">ល-រ</th>
+                  <th rowSpan={3} className="py-2 px-1.5 border-r border-slate-400">អត្តលេខសិស្ស</th>
+                  <th rowSpan={3} className="py-2 px-2.5 border-r border-slate-400">ឈ្មោះ ជាភាសាខ្មែរ</th>
+                  <th rowSpan={3} className="py-2 px-2.5 border-r border-slate-400 font-sans">ឈ្មោះ ជាភាសាឡាតាំង</th>
+                  <th rowSpan={3} className="py-2 px-1 border-r border-slate-400">ភេទ</th>
+                  <th rowSpan={3} className="py-2 px-1.5 border-r border-slate-400">ថ្ងៃ ខែ ឆ្នាំកំណើត</th>
+                  <th rowSpan={3} className="py-2 px-1.5 border-r border-slate-400">ឆ្នាំសិក្សា</th>
+                  <th rowSpan={3} className="py-2 px-1.5 border-r border-slate-400">ស្ថានភាព</th>
+                  <th rowSpan={3} className="py-2 px-1.5 border-r border-slate-400">ថ្លៃឈ្នួលសិក្សា<br/>១ឆ្នាំ</th>
+                  <th colSpan={2} rowSpan={2} className="py-1 px-1 border-r border-slate-400">បញ្ចុះតម្លៃ ក្នុង១ឆ្នាំ</th>
+                  <th rowSpan={3} className="py-2 px-1.5 border-r border-slate-400">ការលើកទឹកចិត្ត</th>
+                  <th rowSpan={3} className="py-2 px-2 border-r border-slate-400 bg-amber-100/70 font-bold">ទឹកប្រាក់ត្រូវបង់</th>
+                  <th colSpan={2} className="py-1 px-1.5 border-r border-slate-400">ទឹកប្រាក់ជំពាក់ឆ្នាំសិក្សាចាស់</th>
+                  <th colSpan={10} className="py-1 px-2 border-r border-slate-400 bg-amber-50/50">ទឹកប្រាក់ជំពាក់ដើមត្រីមាសរុបរួម</th>
+                  <th colSpan={4} className="py-1 px-2 border-r border-slate-400 bg-sky-100/50">ព័ត៌មានការបង់ប្រាក់លើកទី១</th>
+                  <th colSpan={4} className="py-1 px-2 border-r border-slate-400 bg-indigo-100/50">ព័ត៌មានការបង់ប្រាក់លើកទី២</th>
+                  <th colSpan={2} className="py-1 px-1.5 border-r border-slate-400 bg-emerald-100/60 font-bold">ទឹកប្រាក់បានបង់សរុប</th>
+                  <th rowSpan={3} className="py-2 px-1 border-r border-slate-400">ចំនួនដង</th>
+                  <th colSpan={10} className="py-1 px-2 border-r border-slate-400 bg-rose-100/50">ទឹកប្រាក់ជំពាក់ចុងត្រីមាសរុបរួម</th>
+                  <th rowSpan={3} className="no-print py-2 px-1.5 text-center">សកម្មភាព</th>
                 </tr>
-                <tr className="text-[9.5px]">
-                  {/* ទឹកប្រាក់ត្រូវបង់ */}
-                  <th className="py-1 px-1.5 border-r border-slate-300">ថ្លៃឈ្នួលសិក្សា</th>
-                  <th className="py-1 px-1.5 border-r border-slate-300">ថ្លៃសេវាផ្សេងៗ</th>
 
-                  {/* ទឹកប្រាក់ជំពាក់ខែមុនៗ */}
-                  <th className="py-1 px-1.5 border-r border-slate-300">ថ្លៃឈ្នួលសិក្សា</th>
-                  <th className="py-1 px-1.5 border-r border-slate-300">ថ្លៃសេវាផ្សេងៗ</th>
+                {/* Header Row 2 */}
+                <tr className="border-b border-slate-400 text-[8.5px]">
+                  {/* ទឹកប្រាក់ជំពាក់ឆ្នាំសិក្សាចាស់ */}
+                  <th rowSpan={2} className="py-1 px-1 border-r border-slate-400">ថ្លៃឈ្នួលសិក្សា</th>
+                  <th rowSpan={2} className="py-1 px-1 border-r border-slate-400">ថ្លៃសេវារដ្ឋបាល</th>
 
-                  {/* ព័ត៌មានការបង់ប្រាក់ជាក់ស្តែង */}
-                  <th className="py-1 px-1.5 border-r border-slate-300">កាលបរិច្ឆេទ</th>
-                  <th className="py-1 px-2 border-r border-slate-300 font-sans">លេខវិក្កយបត្រ</th>
-                  <th className="py-1 px-1.5 border-r border-slate-300">ទឹកប្រាក់(សិក្សា)</th>
-                  <th className="py-1 px-1.5 border-r border-slate-300">កាលបរិច្ឆេទ</th>
-                  <th className="py-1 px-2 border-r border-slate-300 font-sans">លេខវិក្កយបត្រ</th>
-                  <th className="py-1 px-1.5 border-r border-slate-300">ទឹកប្រាក់(សេវា)</th>
+                  {/* ទឹកប្រាក់ជំពាក់ដើមត្រីមាសរុបរួម */}
+                  <th colSpan={2} className="py-0.5 px-1 border-r border-slate-400">ត្រីមាសទី១</th>
+                  <th colSpan={2} className="py-0.5 px-1 border-r border-slate-400">ត្រីមាសទី២</th>
+                  <th colSpan={2} className="py-0.5 px-1 border-r border-slate-400">ត្រីមាសទី៣</th>
+                  <th colSpan={2} className="py-0.5 px-1 border-r border-slate-400">ត្រីមាសទី៤</th>
+                  <th colSpan={2} className="py-0.5 px-1.5 border-r border-slate-400 font-bold">ទឹកប្រាក់ជំពាក់ឆ្នាំថ្មី</th>
 
-                  {/* ទឹកប្រាក់សល់ចុងគ្រា */}
-                  <th className="py-1 px-1.5 border-r border-slate-300">ថ្លៃឈ្នួលសិក្សា</th>
-                  <th className="py-1 px-1.5 border-r border-slate-300">ថ្លៃសេវាផ្សេងៗ</th>
+                  {/* ព័ត៌មានការបង់ប្រាក់លើកទី១ */}
+                  <th rowSpan={2} className="py-1 px-1 border-r border-slate-400">កាលបរិច្ឆេទ<br/>បង់ប្រាក់</th>
+                  <th rowSpan={2} className="py-1 px-1.5 border-r border-slate-400 font-sans">លេខវិក្កយបត្រ</th>
+                  <th colSpan={2} className="py-0.5 px-1 border-r border-slate-400">ទឹកប្រាក់បានបង់</th>
 
-                  {/* ទឹកប្រាក់ជំពាក់ខែមុននៅខ្វះ */}
-                  <th className="py-1 px-1.5 border-r border-slate-300">ថ្លៃឈ្នួលសិក្សា</th>
-                  <th className="py-1 px-1.5 border-r border-slate-300">ថ្លៃសេវាផ្សេងៗ</th>
+                  {/* ព័ត៌មានការបង់ប្រាក់លើកទី២ */}
+                  <th rowSpan={2} className="py-1 px-1 border-r border-slate-400">កាលបរិច្ឆេទ<br/>បង់ប្រាក់</th>
+                  <th rowSpan={2} className="py-1 px-1.5 border-r border-slate-400 font-sans">លេខវិក្កយបត្រ</th>
+                  <th colSpan={2} className="py-0.5 px-1 border-r border-slate-400">ទឹកប្រាក់បានបង់</th>
 
-                  {/* ទឹកប្រាក់ជំពាក់ជាក់ស្តែង */}
-                  <th className="py-1 px-1.5 border-r border-slate-300">ថ្លៃឈ្នួលសិក្សា</th>
-                  <th className="py-1 px-1.5 border-r border-slate-300">ថ្លៃសេវាផ្សេងៗ</th>
+                  {/* ទឹកប្រាក់បានបង់សរុប */}
+                  <th rowSpan={2} className="py-1 px-1 border-r border-slate-400">ថ្លៃឈ្នួលសិក្សា</th>
+                  <th rowSpan={2} className="py-1 px-1 border-r border-slate-400">ថ្លៃសេវារដ្ឋបាល</th>
 
-                  {/* ទឹកប្រាក់ត្រូវបង់សរុប */}
-                  <th className="py-1 px-1.5 border-r border-slate-300">ថ្លៃឈ្នួលសិក្សា</th>
-                  <th className="py-1 px-1.5 border-r border-slate-300">ថ្លៃសេវាផ្សេងៗ</th>
-                  <th className="py-1 px-2 border-r border-slate-300 font-bold bg-red-100 text-red-900">សរុប</th>
+                  {/* ទឹកប្រាក់ជំពាក់ចុងត្រីមាសរុបរួម */}
+                  <th colSpan={2} className="py-0.5 px-1 border-r border-slate-400">ទឹកប្រាក់ជំពាក់ចុងត្រា<br/>ឆ្នាំសិក្សាចាស់</th>
+                  <th colSpan={8} className="py-0.5 px-1 border-r border-slate-400">ទឹកប្រាក់ជំពាក់ចុងត្រាឆ្នាំថ្មី</th>
+                </tr>
+
+                {/* Header Row 3 */}
+                <tr className="text-[8px] border-b border-slate-400">
+                  {/* បញ្ចុះតម្លៃ ក្នុង១ឆ្នាំ */}
+                  <th className="py-0.5 px-1 border-r border-slate-400">%</th>
+                  <th className="py-0.5 px-1 border-r border-slate-400">ការលើកទឹកចិត្ត</th>
+
+                  {/* ដើមត្រីមាស - Q1 */}
+                  <th className="py-0.5 px-1 border-r border-slate-400">ថ្លៃឈ្នួលសិក្សា</th>
+                  <th className="py-0.5 px-1 border-r border-slate-400">ថ្លៃសេវារដ្ឋបាល</th>
+                  {/* ដើមត្រីមាស - Q2 */}
+                  <th className="py-0.5 px-1 border-r border-slate-400">ថ្លៃឈ្នួលសិក្សា</th>
+                  <th className="py-0.5 px-1 border-r border-slate-400">ថ្លៃសេវារដ្ឋបាល</th>
+                  {/* ដើមត្រីមាស - Q3 */}
+                  <th className="py-0.5 px-1 border-r border-slate-400">ថ្លៃឈ្នួលសិក្សា</th>
+                  <th className="py-0.5 px-1 border-r border-slate-400">ថ្លៃសេវារដ្ឋបាល</th>
+                  {/* ដើមត្រីមាស - Q4 */}
+                  <th className="py-0.5 px-1 border-r border-slate-400">ថ្លៃឈ្នួលសិក្សា</th>
+                  <th className="py-0.5 px-1 border-r border-slate-400">ថ្លៃសេវារដ្ឋបាល</th>
+                  {/* ដើមត្រីមាស - ឆ្នាំថ្មីសរុប */}
+                  <th className="py-0.5 px-1 border-r border-slate-400 font-bold">ថ្លៃឈ្នួលសិក្សា</th>
+                  <th className="py-0.5 px-1 border-r border-slate-400 font-bold">ថ្លៃសេវារដ្ឋបាល</th>
+
+                  {/* លើកទី១ ទឹកប្រាក់ */}
+                  <th className="py-0.5 px-1 border-r border-slate-400">ថ្លៃឈ្នួលសិក្សា</th>
+                  <th className="py-0.5 px-1 border-r border-slate-400">ថ្លៃសេវារដ្ឋបាល</th>
+
+                  {/* លើកទី២ ទឹកប្រាក់ */}
+                  <th className="py-0.5 px-1 border-r border-slate-400">ថ្លៃឈ្នួលសិក្សា</th>
+                  <th className="py-0.5 px-1 border-r border-slate-400">ថ្លៃសេវារដ្ឋបាល</th>
+
+                  {/* ចុងត្រីមាស - ឆ្នាំចាស់ */}
+                  <th className="py-0.5 px-1 border-r border-slate-400">ថ្លៃឈ្នួលសិក្សា</th>
+                  <th className="py-0.5 px-1 border-r border-slate-400">ថ្លៃសេវារដ្ឋបាល</th>
+
+                  {/* ចុងត្រីមាស - Q1..Q4 */}
+                  <th className="py-0.5 px-1 border-r border-slate-400">ត្រីមាសទី១ (សិក្សា)</th>
+                  <th className="py-0.5 px-1 border-r border-slate-400">ត្រីមាសទី១ (សេវា)</th>
+                  <th className="py-0.5 px-1 border-r border-slate-400">ត្រីមាសទី២ (សិក្សា)</th>
+                  <th className="py-0.5 px-1 border-r border-slate-400">ត្រីមាសទី២ (សេវា)</th>
+                  <th className="py-0.5 px-1 border-r border-slate-400">ត្រីមាសទី៣ (សិក្សា)</th>
+                  <th className="py-0.5 px-1 border-r border-slate-400">ត្រីមាសទី៣ (សេវា)</th>
+                  <th className="py-0.5 px-1 border-r border-slate-400">ត្រីមាសទី៤ (សិក្សា)</th>
+                  <th className="py-0.5 px-1 border-r border-slate-400">ត្រីមាសទី៤ (សេវា)</th>
                 </tr>
               </thead>
 
               {/* Body Rows */}
               <tbody className="divide-y divide-slate-200 text-slate-800">
-                {filteredEnglish.map((r, index) => {
+                {filteredEnglish.map((r) => {
+                  const hasPaid = (r.totalPaid?.tuition || 0) > 0;
                   return (
-                    <tr key={r.id} className="hover:bg-amber-50/40 transition-colors">
-                      <td className="py-1.5 px-1.5 text-center font-mono border-r border-slate-200">{r.no}</td>
-                      <td className="py-1.5 px-2 font-mono font-medium text-slate-900 border-r border-slate-200">
+                    <tr 
+                      key={r.id} 
+                      className={`hover:bg-amber-50/50 transition-colors ${
+                        hasPaid ? 'bg-emerald-50/20' : ''
+                      }`}
+                    >
+                      <td className="py-1 px-1 text-center font-mono border-r border-slate-300">{r.no}</td>
+                      <td className="py-1 px-1.5 font-mono font-medium text-slate-900 border-r border-slate-300">
                         {r.studentCode}
                       </td>
-                      <td className="py-1.5 px-3 font-khmer font-bold text-slate-900 border-r border-slate-200">
+                      <td className="py-1 px-2 font-khmer font-bold text-slate-900 border-r border-slate-300">
                         {r.nameKhmer}
                       </td>
-                      <td className="py-1.5 px-3 font-sans text-slate-700 border-r border-slate-200">
+                      <td className="py-1 px-2 font-sans text-slate-700 border-r border-slate-300">
                         {r.nameEnglish}
                       </td>
-                      <td className="py-1.5 px-1.5 text-center font-mono border-r border-slate-200">{r.gender}</td>
-                      <td className="py-1.5 px-2 font-mono text-[10px] text-slate-600 border-r border-slate-200">{r.dob}</td>
-                      <td className="py-1.5 px-2 font-mono text-[10px] text-center border-r border-slate-200">{r.academicYear}</td>
-                      <td className="py-1.5 px-2 font-khmer text-center text-slate-600 border-r border-slate-200">{r.status}</td>
-                      <td className="py-1.5 px-2 text-right font-mono font-medium border-r border-slate-200">
-                        ${r.fullTuition.toFixed(2)}
+                      <td className="py-1 px-1 text-center font-mono border-r border-slate-300">{r.gender}</td>
+                      <td className="py-1 px-1.5 font-mono text-[9px] text-slate-600 border-r border-slate-300">{r.dob}</td>
+                      <td className="py-1 px-1 font-mono text-[9px] text-center border-r border-slate-300">{r.academicYear}</td>
+                      <td className="py-1 px-1.5 font-khmer text-center text-slate-600 border-r border-slate-300">{r.status}</td>
+                      <td className="py-1 px-1.5 text-right font-mono font-medium border-r border-slate-300">
+                        $ {r.fullTuition.toFixed(2)}
                       </td>
-                      <td className="py-1.5 px-1.5 text-center font-mono text-slate-700 border-r border-slate-200">
+
+                      {/* បញ្ចុះតម្លៃ ក្នុង១ឆ្នាំ (% & ការលើកទឹកចិត្ត) */}
+                      <td className="py-1 px-1 text-center font-mono text-slate-700 border-r border-slate-300">
                         {r.discountPercent ? `${r.discountPercent}%` : '-'}
                       </td>
-                      <td className="py-1.5 px-1.5 text-right font-mono text-slate-700 border-r border-slate-200">
-                        {r.incentive ? `$${r.incentive.toFixed(2)}` : '-'}
+                      <td className="py-1 px-1 text-right font-mono text-slate-700 border-r border-slate-300">
+                        {r.annualIncentive ? `$ ${r.annualIncentive.toFixed(2)}` : '$ -'}
+                      </td>
+
+                      {/* ការលើកទឹកចិត្ត */}
+                      <td className="py-1 px-1 text-right font-mono text-slate-700 border-r border-slate-300">
+                        {r.incentive ? `$ ${r.incentive.toFixed(2)}` : '$ -'}
                       </td>
 
                       {/* ទឹកប្រាក់ត្រូវបង់ */}
-                      <td className="py-1.5 px-1.5 text-right font-mono font-bold text-slate-900 bg-amber-50/50 border-r border-slate-200">
-                        ${r.amountPayable.tuition.toFixed(2)}
-                      </td>
-                      <td className="py-1.5 px-1.5 text-right font-mono font-medium text-slate-800 bg-amber-50/30 border-r border-slate-200">
-                        ${r.amountPayable.services.toFixed(2)}
+                      <td className="py-1 px-1.5 text-right font-mono font-bold text-slate-900 bg-amber-50/60 border-r border-slate-300">
+                        $ {r.amountPayableTuition.toFixed(2)}
                       </td>
 
-                      {/* ទឹកប្រាក់ជំពាក់ខែមុនៗ */}
-                      <td className="py-1.5 px-1.5 text-right font-mono text-slate-700 border-r border-slate-200">
-                        {r.previousMonthsDue.tuition ? `$${r.previousMonthsDue.tuition.toFixed(2)}` : '-'}
+                      {/* ទឹកប្រាក់ជំពាក់ឆ្នាំសិក្សាចាស់ (ថ្លៃឈ្នួលសិក្សា & ថ្លៃសេវារដ្ឋបាល) */}
+                      <td className="py-1 px-1 text-right font-mono text-slate-700 border-r border-slate-300">
+                        {r.pastYearDue?.tuition ? `$ ${r.pastYearDue.tuition.toFixed(2)}` : '$ -'}
                       </td>
-                      <td className="py-1.5 px-1.5 text-right font-mono text-slate-700 border-r border-slate-200">
-                        {r.previousMonthsDue.services ? `$${r.previousMonthsDue.services.toFixed(2)}` : '-'}
-                      </td>
-
-                      {/* Actual Payment - Tuition */}
-                      <td className="py-1.5 px-1.5 font-mono text-[9.5px] text-slate-600 border-r border-slate-200">
-                        {r.actualPayment.tuition.installment1?.date || '-'}
-                      </td>
-                      <td className="py-1.5 px-2 font-mono text-[9.5px] text-blue-700 border-r border-slate-200">
-                        {r.actualPayment.tuition.installment1?.invoiceNo || '-'}
-                      </td>
-                      <td className="py-1.5 px-1.5 text-right font-mono font-medium text-emerald-700 border-r border-slate-200">
-                        {r.actualPayment.tuition.installment1?.amountReceived ? `$${r.actualPayment.tuition.installment1.amountReceived.toFixed(2)}` : '-'}
+                      <td className="py-1 px-1 text-right font-mono text-slate-500 border-r border-slate-300">
+                        {r.pastYearDue?.adminFee ? `$ ${r.pastYearDue.adminFee.toFixed(2)}` : '$ -'}
                       </td>
 
-                      {/* Actual Payment - Services */}
-                      <td className="py-1.5 px-1.5 font-mono text-[9.5px] text-slate-600 border-r border-slate-200">
-                        {r.actualPayment.services.installment1?.date || '-'}
+                      {/* ទឹកប្រាក់ជំពាក់ដើមត្រីមាស (Q1, Q2, Q3, Q4, NewYearTotal) */}
+                      <td className="py-1 px-1 text-right font-mono text-slate-600 border-r border-slate-300">
+                        {r.beginningQuarterDue?.q1?.tuition ? `$ ${r.beginningQuarterDue.q1.tuition.toFixed(2)}` : '$ -'}
                       </td>
-                      <td className="py-1.5 px-2 font-mono text-[9.5px] text-blue-700 border-r border-slate-200">
-                        {r.actualPayment.services.installment1?.invoiceNo || '-'}
+                      <td className="py-1 px-1 text-right font-mono text-slate-500 border-r border-slate-300">
+                        {r.beginningQuarterDue?.q1?.adminFee ? `$ ${r.beginningQuarterDue.q1.adminFee.toFixed(2)}` : '$ -'}
                       </td>
-                      <td className="py-1.5 px-1.5 text-right font-mono font-medium text-emerald-700 border-r border-slate-200">
-                        {r.actualPayment.services.installment1?.amountReceived ? `$${r.actualPayment.services.installment1.amountReceived.toFixed(2)}` : '-'}
+                      <td className="py-1 px-1 text-right font-mono text-slate-700 border-r border-slate-300">
+                        {r.beginningQuarterDue?.q2?.tuition ? `$ ${r.beginningQuarterDue.q2.tuition.toFixed(2)}` : '$ -'}
                       </td>
-
-                      {/* ទឹកប្រាក់សល់ចុងគ្រា */}
-                      <td className="py-1.5 px-1.5 text-right font-mono text-slate-700 border-r border-slate-200">
-                        {r.endingBalance.tuition ? `$${r.endingBalance.tuition.toFixed(2)}` : '-'}
+                      <td className="py-1 px-1 text-right font-mono text-slate-700 border-r border-slate-300">
+                        {r.beginningQuarterDue?.q2?.adminFee ? `$ ${r.beginningQuarterDue.q2.adminFee.toFixed(2)}` : '$ -'}
                       </td>
-                      <td className="py-1.5 px-1.5 text-right font-mono text-slate-700 border-r border-slate-200">
-                        {r.endingBalance.services ? `$${r.endingBalance.services.toFixed(2)}` : '-'}
+                      <td className="py-1 px-1 text-right font-mono text-slate-700 border-r border-slate-300">
+                        {r.beginningQuarterDue?.q3?.tuition ? `$ ${r.beginningQuarterDue.q3.tuition.toFixed(2)}` : '$ -'}
                       </td>
-
-                      {/* ទឹកប្រាក់ជំពាក់ខែមុននៅខ្វះ */}
-                      <td className="py-1.5 px-1.5 text-right font-mono text-slate-700 border-r border-slate-200">
-                        {r.remainingPreviousDue.tuition ? `$${r.remainingPreviousDue.tuition.toFixed(2)}` : '-'}
+                      <td className="py-1 px-1 text-right font-mono text-slate-700 border-r border-slate-300">
+                        {r.beginningQuarterDue?.q3?.adminFee ? `$ ${r.beginningQuarterDue.q3.adminFee.toFixed(2)}` : '$ -'}
                       </td>
-                      <td className="py-1.5 px-1.5 text-right font-mono text-slate-700 border-r border-slate-200">
-                        {r.remainingPreviousDue.services ? `$${r.remainingPreviousDue.services.toFixed(2)}` : '-'}
+                      <td className="py-1 px-1 text-right font-mono text-slate-700 border-r border-slate-300">
+                        {r.beginningQuarterDue?.q4?.tuition ? `$ ${r.beginningQuarterDue.q4.tuition.toFixed(2)}` : '$ -'}
                       </td>
-
-                      {/* ទឹកប្រាក់ជំពាក់ជាក់ស្តែង */}
-                      <td className="py-1.5 px-1.5 text-right font-mono text-slate-700 border-r border-slate-200">
-                        {r.actualArrears.tuition ? `$${r.actualArrears.tuition.toFixed(2)}` : '-'}
+                      <td className="py-1 px-1 text-right font-mono text-slate-700 border-r border-slate-300">
+                        {r.beginningQuarterDue?.q4?.adminFee ? `$ ${r.beginningQuarterDue.q4.adminFee.toFixed(2)}` : '$ -'}
                       </td>
-                      <td className="py-1.5 px-1.5 text-right font-mono text-slate-700 border-r border-slate-200">
-                        {r.actualArrears.services ? `$${r.actualArrears.services.toFixed(2)}` : '-'}
+                      <td className="py-1 px-1 text-right font-mono font-bold text-slate-900 border-r border-slate-300">
+                        {r.beginningQuarterDue?.newYearTotal?.tuition ? `$ ${r.beginningQuarterDue.newYearTotal.tuition.toFixed(2)}` : '$ -'}
+                      </td>
+                      <td className="py-1 px-1 text-right font-mono font-bold text-slate-900 border-r border-slate-300">
+                        {r.beginningQuarterDue?.newYearTotal?.adminFee ? `$ ${r.beginningQuarterDue.newYearTotal.adminFee.toFixed(2)}` : '$ -'}
                       </td>
 
-                      {/* ទឹកប្រាក់ត្រូវបង់សរុប */}
-                      <td className="py-1.5 px-1.5 text-right font-mono text-red-700 border-r border-slate-200">
-                        ${r.totalDue.tuition.toFixed(2)}
+                      {/* ព័ត៌មានការបង់ប្រាក់លើកទី១ */}
+                      <td className="py-1 px-1 font-mono text-[9px] text-slate-600 border-r border-slate-300">
+                        {r.installment1?.date || '$ -'}
                       </td>
-                      <td className="py-1.5 px-1.5 text-right font-mono text-red-700 border-r border-slate-200">
-                        ${r.totalDue.services.toFixed(2)}
+                      <td className="py-1 px-1.5 font-mono text-[9px] text-blue-700 border-r border-slate-300">
+                        {r.installment1?.invoiceNoTuition || r.installment1?.invoiceNo || '$ -'}
                       </td>
-                      <td className="py-1.5 px-2 text-right font-mono font-bold text-red-700 bg-red-50/70 border-r border-slate-200">
-                        ${r.totalDue.total.toFixed(2)}
+                      <td className="py-1 px-1 text-right font-mono font-medium text-emerald-700 border-r border-slate-300">
+                        {r.installment1?.amountTuition ? `$ ${r.installment1.amountTuition.toFixed(2)}` : '$ -'}
+                      </td>
+                      <td className="py-1 px-1 text-right font-mono font-medium text-emerald-700 border-r border-slate-300">
+                        {r.installment1?.amountAdmin ? `$ ${r.installment1.amountAdmin.toFixed(2)}` : '$ -'}
+                      </td>
+
+                      {/* ព័ត៌មានការបង់ប្រាក់លើកទី២ */}
+                      <td className="py-1 px-1 font-mono text-[9px] text-slate-600 border-r border-slate-300">
+                        {r.installment2?.date || '$ -'}
+                      </td>
+                      <td className="py-1 px-1.5 font-mono text-[9px] text-blue-700 border-r border-slate-300">
+                        {r.installment2?.invoiceNoTuition || r.installment2?.invoiceNo || '$ -'}
+                      </td>
+                      <td className="py-1 px-1 text-right font-mono font-medium text-emerald-700 border-r border-slate-300">
+                        {r.installment2?.amountTuition ? `$ ${r.installment2.amountTuition.toFixed(2)}` : '$ -'}
+                      </td>
+                      <td className="py-1 px-1 text-right font-mono font-medium text-emerald-700 border-r border-slate-300">
+                        {r.installment2?.amountAdmin ? `$ ${r.installment2.amountAdmin.toFixed(2)}` : '$ -'}
+                      </td>
+
+                      {/* ទឹកប្រាក់បានបង់សរុប (ថ្លៃឈ្នួលសិក្សា & ថ្លៃសេវារដ្ឋបាល) */}
+                      <td className="py-1 px-1.5 text-right font-mono font-bold text-emerald-800 bg-emerald-50/50 border-r border-slate-300">
+                        {r.totalPaid?.tuition ? `$ ${r.totalPaid.tuition.toFixed(2)}` : '$ -'}
+                      </td>
+                      <td className="py-1 px-1.5 text-right font-mono font-bold text-emerald-800 bg-emerald-50/50 border-r border-slate-300">
+                        {r.totalPaid?.adminFee ? `$ ${r.totalPaid.adminFee.toFixed(2)}` : '$ -'}
+                      </td>
+
+                      {/* ចំនួនដង */}
+                      <td className="py-1 px-1 text-center font-mono border-r border-slate-300">
+                        {r.paymentCount ?? 0}
+                      </td>
+
+                      {/* ទឹកប្រាក់ជំពាក់ចុងត្រា (ឆ្នាំចាស់ & Q1..Q4) */}
+                      <td className="py-1 px-1 text-right font-mono text-slate-500 border-r border-slate-300">
+                        {r.endingQuarterDue?.pastYear?.tuition ? `$ ${r.endingQuarterDue.pastYear.tuition.toFixed(2)}` : '$ -'}
+                      </td>
+                      <td className="py-1 px-1 text-right font-mono text-slate-500 border-r border-slate-300">
+                        {r.endingQuarterDue?.pastYear?.adminFee ? `$ ${r.endingQuarterDue.pastYear.adminFee.toFixed(2)}` : '$ -'}
+                      </td>
+                      <td className="py-1 px-1 text-right font-mono text-slate-700 border-r border-slate-300">
+                        {r.endingQuarterDue?.q1?.tuition ? `$ ${r.endingQuarterDue.q1.tuition.toFixed(2)}` : '$ -'}
+                      </td>
+                      <td className="py-1 px-1 text-right font-mono text-slate-500 border-r border-slate-300">
+                        {r.endingQuarterDue?.q1?.adminFee ? `$ ${r.endingQuarterDue.q1.adminFee.toFixed(2)}` : '$ -'}
+                      </td>
+                      <td className="py-1 px-1 text-right font-mono text-slate-700 border-r border-slate-300">
+                        {r.endingQuarterDue?.q2?.tuition ? `$ ${r.endingQuarterDue.q2.tuition.toFixed(2)}` : '$ -'}
+                      </td>
+                      <td className="py-1 px-1 text-right font-mono text-slate-700 border-r border-slate-300">
+                        {r.endingQuarterDue?.q2?.adminFee ? `$ ${r.endingQuarterDue.q2.adminFee.toFixed(2)}` : '$ -'}
+                      </td>
+                      <td className="py-1 px-1 text-right font-mono text-slate-700 border-r border-slate-300">
+                        {r.endingQuarterDue?.q3?.tuition ? `$ ${r.endingQuarterDue.q3.tuition.toFixed(2)}` : '$ -'}
+                      </td>
+                      <td className="py-1 px-1 text-right font-mono text-slate-700 border-r border-slate-300">
+                        {r.endingQuarterDue?.q3?.adminFee ? `$ ${r.endingQuarterDue.q3.adminFee.toFixed(2)}` : '$ -'}
+                      </td>
+                      <td className="py-1 px-1 text-right font-mono text-slate-700 border-r border-slate-300">
+                        {r.endingQuarterDue?.q4?.tuition ? `$ ${r.endingQuarterDue.q4.tuition.toFixed(2)}` : '$ -'}
+                      </td>
+                      <td className="py-1 px-1 text-right font-mono text-slate-700 border-r border-slate-300">
+                        {r.endingQuarterDue?.q4?.adminFee ? `$ ${r.endingQuarterDue.q4.adminFee.toFixed(2)}` : '$ -'}
                       </td>
 
                       {/* Actions */}
-                      <td className="no-print py-1.5 px-2 text-center">
-                        <div className="flex items-center justify-center gap-1">
-                          <button
-                            title="Call Guardian / Note"
-                            onClick={() => setActiveTab('due-payments')}
-                            className="p-1 text-slate-500 hover:text-blue-600 hover:bg-slate-100 rounded cursor-pointer"
-                          >
-                            <PhoneCall className="w-3.5 h-3.5" />
-                          </button>
-                        </div>
+                      <td className="no-print py-1 px-1.5 text-center">
+                        <button
+                          onClick={() => {
+                            const found = students.find(s => s.studentCode === r.studentCode);
+                            if (found) {
+                              setSelectedStudentId(found.id);
+                              setActiveTab('student-profile');
+                            }
+                          }}
+                          className="px-2 py-0.5 bg-blue-50 hover:bg-blue-100 text-blue-700 text-[9px] font-semibold rounded cursor-pointer transition-colors"
+                          title="មើលប្រវត្តិរូបសិស្ស"
+                        >
+                          Profile
+                        </button>
                       </td>
                     </tr>
                   );
                 })}
               </tbody>
 
-              {/* Summary Total Row Matching Screenshot 2 */}
-              <tfoot className="bg-[#fff3a8] font-bold font-khmer text-slate-900 border-t-2 border-slate-400">
+              {/* Totals Footer Matching Screenshot & PDF 1 */}
+              <tfoot className="bg-[#fff3a8] font-bold text-slate-900 border-t-2 border-slate-400 font-khmer text-[8.5px]">
                 <tr>
-                  <td colSpan={8} className="py-2.5 px-3 text-center border-r border-slate-300">
-                    ទឹកប្រាក់សរុប (Grand Total)
+                  <td colSpan={8} className="py-2 px-2 text-center border-r border-slate-400 text-xs">
+                    ទឹកប្រាក់សរុប ({filteredEnglish.length} សិស្ស)
                   </td>
-                  <td className="py-2.5 px-2 text-right font-mono border-r border-slate-300">
-                    ${englishTotals.fullTuition.toFixed(2)}
+                  <td className="py-2 px-1 text-right font-mono border-r border-slate-400">
+                    ${englishTotals.fullTuition.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                   </td>
-                  <td colSpan={2} className="py-2.5 px-1.5 border-r border-slate-300"></td>
-                  <td className="py-2.5 px-1.5 text-right font-mono text-slate-950 bg-amber-200/60 border-r border-slate-300">
-                    ${englishTotals.payTuition.toFixed(2)}
+                  <td className="border-r border-slate-400"></td>
+                  <td className="py-2 px-1 text-right font-mono border-r border-slate-400">
+                    ${englishTotals.annualIncentive ? englishTotals.annualIncentive.toFixed(2) : '-'}
                   </td>
-                  <td className="py-2.5 px-1.5 text-right font-mono text-slate-950 bg-amber-200/40 border-r border-slate-300">
-                    ${englishTotals.payServices.toFixed(2)}
+                  <td className="py-2 px-1 text-right font-mono border-r border-slate-400">
+                    ${englishTotals.incentive ? englishTotals.incentive.toFixed(2) : '-'}
                   </td>
-                  <td className="py-2.5 px-1.5 text-right font-mono border-r border-slate-300">
-                    ${englishTotals.prevTuition.toFixed(2)}
+                  <td className="py-2 px-1.5 text-right font-mono bg-amber-200/70 border-r border-slate-400">
+                    ${englishTotals.amountPayableTuition.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                   </td>
-                  <td className="py-2.5 px-1.5 text-right font-mono border-r border-slate-300">
-                    ${englishTotals.prevServices.toFixed(2)}
+
+                  {/* ជំពាក់ឆ្នាំចាស់ */}
+                  <td className="py-2 px-1 text-right font-mono border-r border-slate-400">
+                    ${englishTotals.pastYearTuition.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                   </td>
-                  <td colSpan={2} className="py-2.5 px-1 border-r border-slate-300"></td>
-                  <td className="py-2.5 px-1.5 text-right font-mono text-emerald-800 border-r border-slate-300">
-                    ${englishTotals.paidTuition1.toFixed(2)}
+                  <td className="py-2 px-1 text-right font-mono border-r border-slate-400">
+                    ${englishTotals.pastYearAdmin.toFixed(2)}
                   </td>
-                  <td colSpan={2} className="py-2.5 px-1 border-r border-slate-300"></td>
-                  <td className="py-2.5 px-1.5 text-right font-mono text-emerald-800 border-r border-slate-300">
-                    ${englishTotals.paidServices1.toFixed(2)}
+
+                  {/* ដើមត្រីមាស */}
+                  <td className="py-2 px-1 text-right font-mono border-r border-slate-400">
+                    ${englishTotals.begQ1Tuition.toFixed(2)}
                   </td>
-                  <td className="py-2.5 px-1.5 text-right font-mono border-r border-slate-300">
-                    ${englishTotals.endTuition.toFixed(2)}
+                  <td className="py-2 px-1 text-right font-mono border-r border-slate-400">
+                    ${englishTotals.begQ1Admin.toFixed(2)}
                   </td>
-                  <td className="py-2.5 px-1.5 text-right font-mono border-r border-slate-300">
-                    ${englishTotals.endServices.toFixed(2)}
+                  <td className="py-2 px-1 text-right font-mono border-r border-slate-400">
+                    ${englishTotals.begQ2Tuition.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                   </td>
-                  <td className="py-2.5 px-1.5 text-right font-mono border-r border-slate-300">
-                    ${englishTotals.remPrevTuition.toFixed(2)}
+                  <td className="py-2 px-1 text-right font-mono border-r border-slate-400">
+                    ${englishTotals.begQ2Admin.toFixed(2)}
                   </td>
-                  <td className="py-2.5 px-1.5 text-right font-mono border-r border-slate-300">
-                    ${englishTotals.remPrevServices.toFixed(2)}
+                  <td className="py-2 px-1 text-right font-mono border-r border-slate-400">
+                    ${englishTotals.begQ3Tuition.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                   </td>
-                  <td className="py-2.5 px-1.5 text-right font-mono border-r border-slate-300">
-                    ${englishTotals.actTuition.toFixed(2)}
+                  <td className="py-2 px-1 text-right font-mono border-r border-slate-400">
+                    ${englishTotals.begQ3Admin.toFixed(2)}
                   </td>
-                  <td className="py-2.5 px-1.5 text-right font-mono border-r border-slate-300">
-                    ${englishTotals.actServices.toFixed(2)}
+                  <td className="py-2 px-1 text-right font-mono border-r border-slate-400">
+                    ${englishTotals.begQ4Tuition.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                   </td>
-                  <td className="py-2.5 px-1.5 text-right font-mono text-red-900 border-r border-slate-300">
-                    ${englishTotals.totTuition.toFixed(2)}
+                  <td className="py-2 px-1 text-right font-mono border-r border-slate-400">
+                    ${englishTotals.begQ4Admin.toFixed(2)}
                   </td>
-                  <td className="py-2.5 px-1.5 text-right font-mono text-red-900 border-r border-slate-300">
-                    ${englishTotals.totServices.toFixed(2)}
+                  <td className="py-2 px-1 text-right font-mono font-bold border-r border-slate-400">
+                    ${englishTotals.begNewYearTuition.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                   </td>
-                  <td className="py-2.5 px-2 text-right font-mono text-red-900 bg-red-200/80 border-r border-slate-300">
-                    ${englishTotals.grandTotal.toFixed(2)}
+                  <td className="py-2 px-1 text-right font-mono font-bold border-r border-slate-400">
+                    ${englishTotals.begNewYearAdmin.toFixed(2)}
+                  </td>
+
+                  {/* លើកទី១ */}
+                  <td colSpan={2} className="border-r border-slate-400"></td>
+                  <td className="py-2 px-1 text-right font-mono border-r border-slate-400">
+                    ${englishTotals.inst1Tuition.toFixed(2)}
+                  </td>
+                  <td className="py-2 px-1 text-right font-mono border-r border-slate-400">
+                    ${englishTotals.inst1Admin.toFixed(2)}
+                  </td>
+
+                  {/* លើកទី២ */}
+                  <td colSpan={2} className="border-r border-slate-400"></td>
+                  <td className="py-2 px-1 text-right font-mono border-r border-slate-400">
+                    ${englishTotals.inst2Tuition.toFixed(2)}
+                  </td>
+                  <td className="py-2 px-1 text-right font-mono border-r border-slate-400">
+                    ${englishTotals.inst2Admin.toFixed(2)}
+                  </td>
+
+                  {/* ទឹកប្រាក់បានបង់សរុប */}
+                  <td className="py-2 px-1.5 text-right font-mono text-emerald-900 bg-emerald-200/80 border-r border-slate-400">
+                    ${englishTotals.totPaidTuition.toFixed(2)}
+                  </td>
+                  <td className="py-2 px-1.5 text-right font-mono text-emerald-900 bg-emerald-200/80 border-r border-slate-400">
+                    ${englishTotals.totPaidAdmin.toFixed(2)}
+                  </td>
+
+                  {/* ចំនួនដង */}
+                  <td className="py-2 px-1 text-center font-mono border-r border-slate-400">
+                    {englishTotals.paymentCount}
+                  </td>
+
+                  {/* ជំពាក់ចុងត្រីមាស */}
+                  <td className="py-2 px-1 text-right font-mono border-r border-slate-400">
+                    ${englishTotals.endPastYearTuition.toFixed(2)}
+                  </td>
+                  <td className="py-2 px-1 text-right font-mono border-r border-slate-400">
+                    ${englishTotals.endPastYearAdmin.toFixed(2)}
+                  </td>
+                  <td className="py-2 px-1 text-right font-mono border-r border-slate-400">
+                    ${englishTotals.endQ1Tuition.toFixed(2)}
+                  </td>
+                  <td className="py-2 px-1 text-right font-mono border-r border-slate-400">
+                    ${englishTotals.endQ1Admin.toFixed(2)}
+                  </td>
+                  <td className="py-2 px-1 text-right font-mono border-r border-slate-400">
+                    ${englishTotals.endQ2Tuition.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  </td>
+                  <td className="py-2 px-1 text-right font-mono border-r border-slate-400">
+                    ${englishTotals.endQ2Admin.toFixed(2)}
+                  </td>
+                  <td className="py-2 px-1 text-right font-mono border-r border-slate-400">
+                    ${englishTotals.endQ3Tuition.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  </td>
+                  <td className="py-2 px-1 text-right font-mono border-r border-slate-400">
+                    ${englishTotals.endQ3Admin.toFixed(2)}
+                  </td>
+                  <td className="py-2 px-1 text-right font-mono border-r border-slate-400">
+                    ${englishTotals.endQ4Tuition.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  </td>
+                  <td className="py-2 px-1 text-right font-mono border-r border-slate-400">
+                    ${englishTotals.endQ4Admin.toFixed(2)}
                   </td>
                   <td className="no-print"></td>
                 </tr>
@@ -900,13 +1133,20 @@ export const DueReportsMatrix: React.FC = () => {
             </table>
           </div>
 
-          {/* Footer Signatures Matching Screenshot 2 Format */}
-          <div className="mt-8 flex justify-end text-xs font-khmer text-slate-800 px-8">
+          {/* Footer Signatures Matching Original PDF 1 */}
+          <div className="mt-8 flex justify-between items-start text-xs font-khmer text-slate-800 px-8">
             <div className="text-center">
-              <p className="text-slate-600">អនុម័តដោយ ថ្ងៃទី {cutoffDateKhmer}</p>
-              <p className="font-bold text-slate-900 mt-1">(ប្រធានផ្នែកគណនេយ្យ)</p>
-              <div className="h-16"></div>
-              <p className="font-semibold text-slate-900">កែវ វិបុល</p>
+              <p className="font-semibold">បានឃើញ និងពិនិត្យត្រឹមត្រូវ</p>
+              <p className="font-bold text-slate-900 mt-0.5">នាយកសាលា (School Director)</p>
+              <div className="h-16 flex items-center justify-center italic text-slate-400 text-[11px]">[ហត្ថលេខា]</div>
+              <p className="font-semibold text-slate-900">{selectedBranch.directorName}</p>
+            </div>
+
+            <div className="text-center">
+              <p className="text-slate-600">ខេត្តសៀមរាប ថ្ងៃទី០១ ខែមិថុនា ឆ្នាំ២០២៦</p>
+              <p className="font-bold text-slate-900 mt-0.5">បុគ្គលិកទទួលបន្ទុកបំណុល (Billing Officer)</p>
+              <div className="h-16 flex items-center justify-center italic text-slate-400 text-[11px]">[ហត្ថលេខា]</div>
+              <p className="font-semibold text-slate-900">ឌីក ស្រី</p>
             </div>
           </div>
         </div>

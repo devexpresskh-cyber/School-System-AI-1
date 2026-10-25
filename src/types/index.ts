@@ -306,10 +306,27 @@ export interface SystemSettings {
   }>;
 }
 
+export interface PromotionRecord {
+  id: string;
+  date: string;
+  sourceAcademicYear: string;
+  targetAcademicYear: string;
+  sourceClass: string;
+  targetClass: string;
+  promotedCount: number;
+  retainedCount: number;
+  graduatedCount: number;
+  promotedStudentIds: string[];
+  performedBy: string;
+  branchId: string;
+  notes?: string;
+}
+
 export type NavigationTab = 
   | 'dashboard'
   | 'students'
   | 'student-profile'
+  | 'student-promote'
   | 'payments'
   | 'due-payments'
   | 'expenses'
