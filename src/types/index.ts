@@ -282,6 +282,15 @@ export interface TelegramConfig {
   channelName?: string;
 }
 
+export interface SemesterDateConfig {
+  academicYear: string;
+  semester1StartDate: string; // YYYY-MM-DD
+  semester1EndDate: string;   // YYYY-MM-DD
+  semester2StartDate: string; // YYYY-MM-DD
+  semester2EndDate: string;   // YYYY-MM-DD
+  notes?: string;
+}
+
 export interface SystemSettings {
   schoolNameKhmer: string;
   schoolNameEnglish: string;
@@ -293,6 +302,7 @@ export interface SystemSettings {
   activeAcademicYear: string;
   gradeLevels: string[];
   terms: string[];
+  semesterConfigs?: Record<string, SemesterDateConfig>;
   currencySymbolUSD: string;
   currencySymbolKHR: string;
   autoBackupEnabled: boolean;

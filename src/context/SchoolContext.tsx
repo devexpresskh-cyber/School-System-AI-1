@@ -15,7 +15,8 @@ import {
   FeeCategory,
   StockMovement,
   UserPermissions,
-  PromotionRecord
+  PromotionRecord,
+  SemesterDateConfig
 } from '../types';
 import { KhmerDueRecord, EnglishDueRecord } from '../types/dueReport';
 import { 
@@ -27,6 +28,7 @@ import {
   INITIAL_PAYMENTS, 
   INITIAL_ACADEMIC_RECORDS, 
   INITIAL_SETTINGS, 
+  DEFAULT_SEMESTER_CONFIGS,
   INITIAL_EXPENSES,
   INITIAL_CALL_NOTES,
   INITIAL_FEE_CATEGORIES,
@@ -171,6 +173,7 @@ interface SchoolContextType {
 
   settings: SystemSettings;
   updateSettings: (s: Partial<SystemSettings>) => void;
+  updateSemesterConfig: (academicYear: string, config: SemesterDateConfig) => void;
   addBranch: (b: Omit<Branch, 'id'>) => Branch;
   updateBranch: (id: string, b: Partial<Branch>) => void;
   deleteBranch: (id: string) => boolean;
@@ -321,6 +324,10 @@ export const SchoolProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         return {
           ...INITIAL_SETTINGS,
           ...parsed,
+          semesterConfigs: {
+            ...DEFAULT_SEMESTER_CONFIGS,
+            ...(parsed.semesterConfigs || {})
+          },
           telegramConfig: {
             ...INITIAL_SETTINGS.telegramConfig,
             ...(parsed.telegramConfig || {})
@@ -863,6 +870,16 @@ export const SchoolProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     setSettings(prev => ({ ...prev, ...s }));
   };
 
+  const updateSemesterConfig = (academicYear: string, config: SemesterDateConfig) => {
+    setSettings(prev => ({
+      ...prev,
+      semesterConfigs: {
+        ...(prev.semesterConfigs || {}),
+        [academicYear]: config
+      }
+    }));
+  };
+
   const addBranch = (b: Omit<Branch, 'id'>) => {
     const newBranch: Branch = {
       ...b,
@@ -1387,6 +1404,7 @@ export const SchoolProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         deleteEnglishDueRecord,
         settings,
         updateSettings,
+        updateSemesterConfig,
         addBranch,
         updateBranch,
         deleteBranch,

@@ -2,11 +2,14 @@ import React, { useState } from 'react';
 import { useSchool } from '../../context/SchoolContext';
 import { Branch, User, UserPermissions, UserRole } from '../../types';
 import { ConfirmModal } from '../common/ConfirmModal';
+import { RegisteredClassesTableView } from './RegisteredClassesTableView';
+import { SemesterDatesConfigCard } from './SemesterDatesConfigCard';
 import { 
   Building2, 
   Settings, 
   DollarSign, 
   GraduationCap, 
+  Calendar,
   Plus, 
   Check, 
   Edit2, 
@@ -67,7 +70,6 @@ export const SystemSettingsView: React.FC = () => {
   const [schoolNameEnglish, setSchoolNameEnglish] = useState(settings.schoolNameEnglish);
   const [exchangeRate, setExchangeRate] = useState(settings.defaultExchangeRate);
   const [activeAcademicYear, setActiveAcademicYear] = useState(settings.activeAcademicYear);
-  const [newClassName, setNewClassName] = useState('');
   const [saveToast, setSaveToast] = useState(false);
   const [userToast, setUserToast] = useState<string | null>(null);
 
@@ -137,45 +139,6 @@ export const SystemSettingsView: React.FC = () => {
     canDeleteRecords: false,
     accessAllBranches: false
   });
-
-  // Edit Grade Level / Class state
-  const [editingGradeLevel, setEditingGradeLevel] = useState<{ original: string; current: string } | null>(null);
-
-  const handleSaveEditGrade = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!editingGradeLevel) return;
-    const trimmed = editingGradeLevel.current.trim();
-    if (!trimmed) return;
-    if (trimmed !== editingGradeLevel.original) {
-      if (settings.gradeLevels.includes(trimmed)) {
-        setUserToast(`ឈ្មោះថ្នាក់ "${trimmed}" មានរួចហើយក្នុងប្រព័ន្ធ!`);
-        setTimeout(() => setUserToast(null), 3000);
-        return;
-      }
-      updateSettings({
-        gradeLevels: settings.gradeLevels.map(g => g === editingGradeLevel.original ? trimmed : g)
-      });
-      setUserToast(`បានប្តូរឈ្មោះថ្នាក់ "${editingGradeLevel.original}" ទៅជា "${trimmed}" ដោយជោគជ័យ!`);
-      setTimeout(() => setUserToast(null), 3000);
-    }
-    setEditingGradeLevel(null);
-  };
-
-  const handleDeleteGradeLevel = (gl: string) => {
-    setConfirmModalData({
-      isOpen: true,
-      title: 'លុបកម្រិត/ថ្នាក់ (Delete Grade Level / Class)',
-      message: `តើលោកអ្នកពិតជាចង់លុបកម្រិត/ថ្នាក់ "${gl}" ចេញពីបញ្ជីថ្នាក់រៀនមែនទេ? សិស្សដែលស្ថិតក្នុងថ្នាក់នេះនឹងមិនត្រូវបានលុបឡើយ។`,
-      itemName: `Class / Grade: ${gl}`,
-      onConfirm: () => {
-        updateSettings({
-          gradeLevels: settings.gradeLevels.filter(item => item !== gl)
-        });
-        setUserToast(`បានលុបថ្នាក់ "${gl}" ចេញពីបញ្ជី`);
-        setTimeout(() => setUserToast(null), 3000);
-      }
-    });
-  };
 
   const handleSaveGeneral = (e: React.FormEvent) => {
     e.preventDefault();
@@ -847,128 +810,55 @@ export const SystemSettingsView: React.FC = () => {
         </form>
       )}
 
-      {/* TAB 4: ACADEMIC YEARS */}
+      {/* TAB 4: ACADEMIC YEARS & CLASSES */}
       {activeTab === 'academic' && (
-        <form onSubmit={handleSaveGeneral} className="bg-white rounded-b-xl shadow-xs border border-slate-200 p-6 space-y-4">
-          <h3 className="text-sm font-bold text-slate-900 border-b border-slate-100 pb-2">
-            Academic Calendar & Grade Levels
-          </h3>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
-            <div>
-              <label className="block font-semibold text-slate-700 mb-1">Active Running Academic Year</label>
-              <select
-                value={activeAcademicYear}
-                onChange={(e) => setActiveAcademicYear(e.target.value)}
-                className="w-full h-9 px-3 border border-slate-300 rounded-md font-mono font-bold"
-              >
-                {settings.academicYears.map(yr => (
-                  <option key={yr} value={yr}>{yr}</option>
-                ))}
-              </select>
-            </div>
-          </div>
-
-          {/* Registered Classes & Grade Levels Management */}
-          <div className="pt-4 border-t border-slate-200 space-y-3">
-            <div className="flex flex-wrap items-center justify-between gap-2">
+        <div className="space-y-4">
+          {/* Active Running Academic Year Form */}
+          <form onSubmit={handleSaveGeneral} className="bg-white rounded-xl shadow-xs border border-slate-200 p-5 space-y-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-3">
               <div>
-                <h4 className="font-bold text-slate-800 text-xs flex items-center gap-1.5 font-khmer">
-                  <GraduationCap className="w-4 h-4 text-blue-600" />
-                  <span>បញ្ជីថ្នាក់ & កម្រិតសិក្សាដែលបានចុះឈ្មោះ (Registered Class & Grade List - {settings.gradeLevels.length} Classes)</span>
-                </h4>
-                <p className="text-[11px] text-slate-500 font-khmer">
-                  ថ្នាក់ទាំងនេះនឹងបង្ហាញក្នុងបញ្ជីជ្រើសរើស (Dropdown) សម្រាប់ពាក្យសុំចូលរៀន ការបង់ប្រាក់ និងការគ្រប់គ្រងសិស្ស។
+                <h3 className="text-sm font-bold text-slate-900 font-khmer flex items-center gap-2">
+                  <Calendar className="w-4 h-4 text-blue-600" />
+                  <span>ឆ្នាំសិក្សា & ប្រតិទិនអប់រំ (Academic Calendar & Active Year)</span>
+                </h3>
+                <p className="text-[11px] text-slate-500 font-khmer mt-0.5">
+                  កំណត់ឆ្នាំសិក្សាដែលកំពុងដំណើរការជាចម្បងក្នុងប្រព័ន្ធសាលា
                 </p>
               </div>
 
-              {/* Add New Class inline form */}
-              <div className="flex items-center gap-2">
-                <input
-                  type="text"
-                  placeholder="ឈ្មោះថ្នាក់ថ្មី (e.g. ថ្នាក់ទី ៧A)"
-                  value={newClassName}
-                  onChange={(e) => setNewClassName(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') {
-                      e.preventDefault();
-                      const trimmed = newClassName.trim();
-                      if (trimmed && !settings.gradeLevels.includes(trimmed)) {
-                        updateSettings({
-                          gradeLevels: [...settings.gradeLevels, trimmed]
-                        });
-                        setNewClassName('');
-                        setUserToast(`បានបន្ថែមថ្នាក់ "${trimmed}" ដោយជោគជ័យ!`);
-                        setTimeout(() => setUserToast(null), 3000);
-                      }
-                    }
-                  }}
-                  className="h-8 px-2.5 text-xs border border-slate-300 rounded-md font-khmer focus:ring-1 focus:ring-blue-500"
-                />
-                <button
-                  type="button"
-                  onClick={() => {
-                    const trimmed = newClassName.trim();
-                    if (trimmed && !settings.gradeLevels.includes(trimmed)) {
-                      updateSettings({
-                        gradeLevels: [...settings.gradeLevels, trimmed]
-                      });
-                      setNewClassName('');
-                      setUserToast(`បានបន្ថែមថ្នាក់ "${trimmed}" ដោយជោគជ័យ!`);
-                      setTimeout(() => setUserToast(null), 3000);
-                    }
-                  }}
-                  className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded-md shadow-xs flex items-center gap-1 cursor-pointer transition-colors shrink-0"
+              <button
+                type="submit"
+                className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded-lg shadow-xs flex items-center gap-1.5 cursor-pointer self-start sm:self-auto"
+              >
+                <Save className="w-4 h-4" />
+                <span>Save Academic Year</span>
+              </button>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
+              <div>
+                <label className="block font-semibold text-slate-700 mb-1 font-khmer">
+                  ឆ្នាំសិក្សាកំពុងដំណើរការ (Active Running Academic Year)
+                </label>
+                <select
+                  value={activeAcademicYear}
+                  onChange={(e) => setActiveAcademicYear(e.target.value)}
+                  className="w-full h-9 px-3 border border-slate-300 rounded-md font-mono font-bold focus:ring-1 focus:ring-blue-500 focus:outline-none"
                 >
-                  <Plus className="w-3.5 h-3.5" />
-                  <span>+ បន្ថែមថ្នាក់</span>
-                </button>
+                  {settings.academicYears.map(yr => (
+                    <option key={yr} value={yr}>{yr}</option>
+                  ))}
+                </select>
               </div>
             </div>
+          </form>
 
-            {/* Class Chips List */}
-            <div className="bg-slate-50 border border-slate-200 rounded-xl p-3.5 flex flex-wrap gap-2 max-h-56 overflow-y-auto">
-              {settings.gradeLevels.map((gl) => (
-                <div
-                  key={gl}
-                  className="bg-white border border-slate-300 hover:border-blue-400 rounded-lg px-2.5 py-1 text-xs font-semibold text-slate-800 flex items-center gap-2 shadow-2xs font-khmer group transition-all"
-                >
-                  <span>{gl}</span>
-                  <div className="flex items-center gap-1 opacity-70 group-hover:opacity-100 transition-opacity">
-                    <button
-                      type="button"
-                      onClick={() => setEditingGradeLevel({ original: gl, current: gl })}
-                      className="text-slate-400 hover:text-blue-600 p-0.5 rounded transition-colors cursor-pointer"
-                      title="Edit grade level name (កែប្រែឈ្មោះថ្នាក់)"
-                    >
-                      <Edit2 className="w-3 h-3" />
-                    </button>
-                    {settings.gradeLevels.length > 1 && (
-                      <button
-                        type="button"
-                        onClick={() => handleDeleteGradeLevel(gl)}
-                        className="text-slate-400 hover:text-red-600 p-0.5 rounded transition-colors cursor-pointer"
-                        title="Delete grade level (លុបថ្នាក់)"
-                      >
-                        <Trash2 className="w-3 h-3" />
-                      </button>
-                    )}
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
+          {/* Academic Semester Dates Configuration - Semester 1 & Semester 2 */}
+          <SemesterDatesConfigCard />
 
-          <div className="pt-3 flex justify-end">
-            <button
-              type="submit"
-              className="px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded-lg shadow-xs flex items-center gap-1.5 cursor-pointer"
-            >
-              <Save className="w-4 h-4" />
-              <span>Save Academic Settings</span>
-            </button>
-          </div>
-        </form>
+          {/* Registered Classes & Grade Levels Management - Table View separated by Khmer & English Programs */}
+          <RegisteredClassesTableView />
+        </div>
       )}
 
       {/* Telegram Alerts & Backup Settings Tab */}
@@ -1702,62 +1592,6 @@ export const SystemSettingsView: React.FC = () => {
         </div>
       )}
 
-      {/* Edit Grade Level Modal */}
-      {editingGradeLevel && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs">
-          <div className="bg-white w-full max-w-md rounded-xl shadow-2xl border border-slate-200 overflow-hidden animate-in fade-in zoom-in-95 duration-150">
-            <div className="bg-blue-800 text-white px-5 py-3.5 flex items-center justify-between">
-              <h3 className="text-sm font-bold flex items-center gap-2">
-                <Edit2 className="w-4 h-4 text-blue-200" />
-                <span>កែសម្រួលឈ្មោះកម្រិត/ថ្នាក់ (Edit Grade Level / Class)</span>
-              </h3>
-              <button
-                type="button"
-                onClick={() => setEditingGradeLevel(null)}
-                className="text-blue-200 hover:text-white p-1 rounded hover:bg-blue-700 cursor-pointer"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-
-            <form onSubmit={handleSaveEditGrade} className="p-5 space-y-4 text-xs">
-              <div>
-                <label className="block font-semibold text-slate-700 mb-1">
-                  ឈ្មោះកម្រិត/ថ្នាក់ (Grade Level / Class Name)
-                </label>
-                <input
-                  type="text"
-                  value={editingGradeLevel.current}
-                  onChange={(e) => setEditingGradeLevel(prev => prev ? { ...prev, current: e.target.value } : null)}
-                  className="w-full h-9 px-3 border border-slate-300 rounded-md font-khmer font-bold text-sm focus:ring-1 focus:ring-blue-500 focus:outline-none"
-                  required
-                  autoFocus
-                />
-                <span className="text-[11px] text-slate-500 mt-1 block">
-                  ឈ្មោះដើម: <span className="font-semibold text-slate-700 font-khmer">{editingGradeLevel.original}</span>
-                </span>
-              </div>
-
-              <div className="pt-2 flex justify-end gap-2">
-                <button
-                  type="button"
-                  onClick={() => setEditingGradeLevel(null)}
-                  className="px-4 py-2 text-slate-600 hover:text-slate-800 font-medium cursor-pointer"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  className="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-lg shadow-xs flex items-center gap-1.5 cursor-pointer transition-colors"
-                >
-                  <Save className="w-4 h-4" />
-                  <span>រក្សាទុក (Save Class Name)</span>
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
 
       {/* In-app Confirmation Modal */}
       <ConfirmModal

@@ -19,6 +19,13 @@ import {
   Calendar
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
+import { 
+  getSemesterConfig, 
+  classifyInvoiceSemester, 
+  matchesSemesterFilter, 
+  formatKhmerDate,
+  SemesterFilterType 
+} from '../../utils/semesterUtils';
 
 export const DuePaymentsView: React.FC = () => {
   const { 
@@ -33,6 +40,8 @@ export const DuePaymentsView: React.FC = () => {
   } = useSchool();
 
   const [activeViewMode, setActiveViewMode] = useState<'matrix' | 'invoices' | 'call-notes'>('matrix');
+  const [selectedYear, setSelectedYear] = useState<string>(settings.activeAcademicYear || '2025-2026');
+  const [semesterFilter, setSemesterFilter] = useState<SemesterFilterType>('all');
   const [search, setSearch] = useState('');
   const [classFilter, setClassFilter] = useState('');
   const [selectedInvoiceForPrint, setSelectedInvoiceForPrint] = useState<PaymentInvoice | null>(null);
@@ -41,15 +50,42 @@ export const DuePaymentsView: React.FC = () => {
   const [targetStudentForCallNote, setTargetStudentForCallNote] = useState<Student | null>(null);
   const [isCallModalOpen, setIsCallModalOpen] = useState(false);
 
-  // Filter only Due or Partial payments with owedRemain > 0
+  // Active Semester Configuration
+  const semesterConfig = getSemesterConfig(settings, selectedYear);
+
+  // All due invoices for the selected academic year
+  const allYearDueInvoices = branchPayments.filter(p => {
+    const isDue = p.owedRemain > 0 && (p.status === 'Due' || p.status === 'Partial');
+    const matchYear = !selectedYear || p.academicYear === selectedYear || p.academicYear === selectedYear.slice(0, 4);
+    return isDue && matchYear;
+  });
+
+  // Calculate debts partitioned by semester
+  const sem1DebtUSD = allYearDueInvoices
+    .filter(p => {
+      const cls = classifyInvoiceSemester(p, semesterConfig);
+      return cls === 'semester1' || cls === 'annual';
+    })
+    .reduce((sum, p) => sum + (classifyInvoiceSemester(p, semesterConfig) === 'annual' ? p.owedRemain * 0.5 : p.owedRemain), 0);
+
+  const sem2DebtUSD = allYearDueInvoices
+    .filter(p => {
+      const cls = classifyInvoiceSemester(p, semesterConfig);
+      return cls === 'semester2' || cls === 'annual';
+    })
+    .reduce((sum, p) => sum + (classifyInvoiceSemester(p, semesterConfig) === 'annual' ? p.owedRemain * 0.5 : p.owedRemain), 0);
+
+  // Filtered Due List
   const dueList = branchPayments.filter(p => {
     const isDue = p.owedRemain > 0 && (p.status === 'Due' || p.status === 'Partial');
+    const matchYear = !selectedYear || p.academicYear === selectedYear || p.academicYear === selectedYear.slice(0, 4);
+    const matchSemester = matchesSemesterFilter(p, semesterFilter, semesterConfig);
     const matchSearch = !search.trim() ||
       p.studentNameKhmer.toLowerCase().includes(search.toLowerCase()) ||
       p.studentName.toLowerCase().includes(search.toLowerCase()) ||
       p.invoiceNumber.toLowerCase().includes(search.toLowerCase());
     const matchClass = !classFilter || p.classGrade === classFilter;
-    return isDue && matchSearch && matchClass;
+    return isDue && matchYear && matchSemester && matchSearch && matchClass;
   });
 
   const totalArrearsUSD = dueList.reduce((sum, p) => sum + p.owedRemain, 0);
@@ -154,11 +190,83 @@ export const DuePaymentsView: React.FC = () => {
       {/* Mode 2: Invoices Register */}
       {activeViewMode === 'invoices' && (
         <div className="space-y-4">
+          {/* Semester Partition for Student Arrears */}
+          <div className="bg-white p-3.5 rounded-xl border border-slate-200 shadow-xs flex flex-wrap items-center justify-between gap-3">
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-bold text-slate-700 font-khmer flex items-center gap-1.5">
+                <Calendar className="w-4 h-4 text-blue-600" />
+                <span>បែងចែកបំណុលតាមឆមាស:</span>
+              </span>
+
+              {/* Semester Filter Tabs */}
+              <div className="flex items-center gap-1.5">
+                <button
+                  onClick={() => setSemesterFilter('all')}
+                  className={`px-3 py-1 rounded-lg text-xs font-bold cursor-pointer font-khmer transition-all ${
+                    semesterFilter === 'all'
+                      ? 'bg-slate-900 text-white shadow-xs'
+                      : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                  }`}
+                >
+                  ទាំងអស់ (All Arrears)
+                </button>
+
+                <button
+                  onClick={() => setSemesterFilter('semester1')}
+                  className={`px-3 py-1 rounded-lg text-xs font-bold cursor-pointer font-khmer transition-all flex items-center gap-1.5 ${
+                    semesterFilter === 'semester1'
+                      ? 'bg-blue-600 text-white shadow-xs'
+                      : 'bg-blue-50 text-blue-700 hover:bg-blue-100 border border-blue-200'
+                  }`}
+                >
+                  <span>ឆមាសទី១ (Semester 1)</span>
+                  <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-mono ${
+                    semesterFilter === 'semester1' ? 'bg-white/20 text-white' : 'bg-blue-200 text-blue-900'
+                  }`}>
+                    ${sem1DebtUSD.toFixed(0)}
+                  </span>
+                </button>
+
+                <button
+                  onClick={() => setSemesterFilter('semester2')}
+                  className={`px-3 py-1 rounded-lg text-xs font-bold cursor-pointer font-khmer transition-all flex items-center gap-1.5 ${
+                    semesterFilter === 'semester2'
+                      ? 'bg-emerald-600 text-white shadow-xs'
+                      : 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200'
+                  }`}
+                >
+                  <span>ឆមាសទី២ (Semester 2)</span>
+                  <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-mono ${
+                    semesterFilter === 'semester2' ? 'bg-white/20 text-white' : 'bg-emerald-200 text-emerald-900'
+                  }`}>
+                    ${sem2DebtUSD.toFixed(0)}
+                  </span>
+                </button>
+              </div>
+            </div>
+
+            {/* Academic Year Selector */}
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-semibold text-slate-500 font-khmer">ឆ្នាំសិក្សា:</span>
+              <select
+                value={selectedYear}
+                onChange={(e) => setSelectedYear(e.target.value)}
+                className="h-8 px-2 text-xs font-mono font-bold border border-slate-300 rounded-md bg-white focus:ring-1 focus:ring-blue-500 focus:outline-none"
+              >
+                {settings.academicYears.map(yr => (
+                  <option key={yr} value={yr}>{yr}</option>
+                ))}
+              </select>
+            </div>
+          </div>
+
           {/* Overview Cards */}
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <div className="bg-red-50/70 border border-red-200 rounded-xl p-4 shadow-xs">
               <div className="flex items-center justify-between text-red-600 mb-1">
-                <span className="text-[11px] font-bold uppercase tracking-wider">Total Outstanding Arrears</span>
+                <span className="text-[11px] font-bold uppercase tracking-wider">
+                  {semesterFilter === 'semester1' ? 'ឆមាសទី១ - បំណុលនៅសល់' : semesterFilter === 'semester2' ? 'ឆមាសទី២ - បំណុលនៅសល់' : 'Total Outstanding Arrears'}
+                </span>
                 <Clock className="w-5 h-5 text-red-500" />
               </div>
               <div className="text-2xl font-black text-red-700 font-mono">

@@ -16,6 +16,7 @@ import {
   Edit2
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
+import { getSemesterConfig, formatKhmerDate } from '../../utils/semesterUtils';
 
 export const DueReportsMatrix: React.FC = () => {
   const { 
@@ -39,6 +40,9 @@ export const DueReportsMatrix: React.FC = () => {
   const [cutoffDateKhmer, setCutoffDateKhmer] = useState('៣១-ឧសភា-២០២៦');
   const [selectedClassKhmer, setSelectedClassKhmer] = useState('ថ្នាក់ទី៧');
   const [selectedClassEnglish, setSelectedClassEnglish] = useState('ថ្នាក់K1');
+
+  // Semester Date Configuration for the selected year
+  const semConfig = getSemesterConfig(settings, selectedYear);
 
   // Filtered lists
   const filteredKhmer = branchKhmerDueRecords.filter(r => {
@@ -395,6 +399,31 @@ export const DueReportsMatrix: React.FC = () => {
 
         <div className="text-[11px] text-slate-500 font-sans">
           Showing <span className="font-bold text-slate-900">{activeProgram === 'khmer' ? filteredKhmer.length : filteredEnglish.length}</span> students
+        </div>
+      </div>
+
+      {/* Semester Configuration Date Timeline Banner */}
+      <div className="no-print bg-white p-3 rounded-xl border border-slate-200 shadow-xs flex flex-wrap items-center justify-between gap-3 text-xs">
+        <div className="flex flex-wrap items-center gap-2">
+          <Calendar className="w-4 h-4 text-blue-600 shrink-0" />
+          <span className="font-bold text-slate-800 font-khmer">
+            កាលបរិច្ឆេទឆមាស ({selectedYear})៖
+          </span>
+          <span className="px-2 py-0.5 rounded bg-blue-50 text-blue-700 font-khmer border border-blue-200">
+            ឆមាសទី១: <b>{formatKhmerDate(semConfig.semester1StartDate)}</b> ដល់ <b>{formatKhmerDate(semConfig.semester1EndDate)}</b>
+          </span>
+          <span className="px-2 py-0.5 rounded bg-emerald-50 text-emerald-700 font-khmer border border-emerald-200">
+            ឆមាសទី២: <b>{formatKhmerDate(semConfig.semester2StartDate)}</b> ដល់ <b>{formatKhmerDate(semConfig.semester2EndDate)}</b>
+          </span>
+        </div>
+
+        <div className="flex items-center gap-4 text-xs font-mono font-bold">
+          <span className="text-blue-800 font-khmer">
+            ជំពាក់ឆមាស១: <span className="font-mono text-rose-600">${khmerTotals.endingSem1.toFixed(2)}</span>
+          </span>
+          <span className="text-emerald-800 font-khmer">
+            ជំពាក់ឆមាស២: <span className="font-mono text-rose-600">${khmerTotals.endingSem2.toFixed(2)}</span>
+          </span>
         </div>
       </div>
 

@@ -16,8 +16,21 @@ import {
   Send,
   CheckCircle2,
   XCircle,
-  X
+  X,
+  Calendar,
+  Layers,
+  DollarSign,
+  Clock,
+  TrendingUp
 } from 'lucide-react';
+import { 
+  getSemesterConfig, 
+  classifyInvoiceSemester, 
+  matchesSemesterFilter, 
+  calculateSemesterFinancialPartition, 
+  formatKhmerDate,
+  SemesterFilterType 
+} from '../../utils/semesterUtils';
 
 export const PaymentsView: React.FC = () => {
   const { 
@@ -29,6 +42,21 @@ export const PaymentsView: React.FC = () => {
     setActiveTab,
     sendTelegramPaymentReceipt
   } = useSchool();
+
+  // Academic Year & Semester Partition Filter
+  const [selectedAcademicYear, setSelectedAcademicYear] = useState<string>(settings.activeAcademicYear || '2025-2026');
+  const [semesterFilter, setSemesterFilter] = useState<SemesterFilterType>('all');
+
+  // Semester Date Configuration for the selected year
+  const semesterConfig = useMemo(() => {
+    return getSemesterConfig(settings, selectedAcademicYear);
+  }, [settings, selectedAcademicYear]);
+
+  // Financial Partition Calculation for the selected year
+  const partitionStats = useMemo(() => {
+    const yearPayments = branchPayments.filter(p => !selectedAcademicYear || p.academicYear === selectedAcademicYear || p.academicYear === selectedAcademicYear.slice(0, 4));
+    return calculateSemesterFinancialPartition(yearPayments.length > 0 ? yearPayments : branchPayments, semesterConfig);
+  }, [branchPayments, selectedAcademicYear, semesterConfig]);
 
   // Filters
   const [filterSearch, setFilterSearch] = useState('');
@@ -84,6 +112,12 @@ export const PaymentsView: React.FC = () => {
   // Filtered rows
   const filteredPayments = useMemo(() => {
     return branchPayments.filter(p => {
+      // Semester Date Filter
+      const matchSemester = matchesSemesterFilter(p, semesterFilter, semesterConfig);
+
+      // Academic Year Filter
+      const matchYear = !selectedAcademicYear || p.academicYear === selectedAcademicYear || p.academicYear === selectedAcademicYear.slice(0, 4);
+
       const matchSearch = !filterSearch.trim() || 
         p.studentNameKhmer.toLowerCase().includes(filterSearch.toLowerCase()) ||
         p.studentName.toLowerCase().includes(filterSearch.toLowerCase()) ||
@@ -93,42 +127,48 @@ export const PaymentsView: React.FC = () => {
       const matchTitle = !filterTitle || p.title.includes(filterTitle);
       const matchClass = !filterClass || p.classGrade === filterClass;
 
-      return matchSearch && matchDate && matchTitle && matchClass;
+      return matchSemester && matchYear && matchSearch && matchDate && matchTitle && matchClass;
     });
-  }, [branchPayments, filterSearch, filterStartDate, filterTitle, filterClass]);
+  }, [branchPayments, semesterFilter, semesterConfig, selectedAcademicYear, filterSearch, filterStartDate, filterTitle, filterClass]);
 
   const totalPages = Math.max(1, Math.ceil(filteredPayments.length / pageSize));
   const paginatedPayments = filteredPayments.slice((currentPage - 1) * pageSize, currentPage * pageSize);
 
   // Export to XLS file using real SheetJS
   const handleExportXLS = () => {
-    const exportData = filteredPayments.map((p, idx) => ({
-      'No': idx + 1,
-      'Invoice #': p.invoiceNumber,
-      'Student Name (Khmer)': p.studentNameKhmer,
-      'Student Name (English)': p.studentName,
-      'Class': p.classGrade,
-      'Academic Year': p.academicYear,
-      'Revenue Type': p.title,
-      'Payment Type': p.paymentType,
-      'Issue Date': p.issuedDate,
-      'Start Date': p.startDate,
-      'End Date': p.endDate,
-      'Full Price ($)': p.fullAmount,
-      'Discount (%)': p.discountPercent,
-      'Payable ($)': p.amountToBePaid,
-      'Paid USD ($)': p.paidUSD,
-      'Paid KHR (៛)': p.paidKHR,
-      'Owed Remain ($)': p.owedRemain,
-      'Status': p.status,
-      'Method': p.method,
-      'Cashier': p.cashierName
-    }));
+    const exportData = filteredPayments.map((p, idx) => {
+      const semClass = classifyInvoiceSemester(p, semesterConfig);
+      const semLabel = semClass === 'semester1' ? 'ឆមាសទី១ (Semester 1)' : semClass === 'semester2' ? 'ឆមាសទី២ (Semester 2)' : semClass === 'annual' ? 'ប្រចាំឆ្នាំ (Annual)' : 'ផ្សេងៗ (Other)';
+
+      return {
+        'No': idx + 1,
+        'Invoice #': p.invoiceNumber,
+        'Student Name (Khmer)': p.studentNameKhmer,
+        'Student Name (English)': p.studentName,
+        'Class': p.classGrade,
+        'Academic Year': p.academicYear,
+        'Semester Partition': semLabel,
+        'Revenue Type': p.title,
+        'Payment Type': p.paymentType,
+        'Issue Date': p.issuedDate,
+        'Start Date': p.startDate,
+        'End Date': p.endDate,
+        'Full Price ($)': p.fullAmount,
+        'Discount (%)': p.discountPercent,
+        'Payable ($)': p.amountToBePaid,
+        'Paid USD ($)': p.paidUSD,
+        'Paid KHR (៛)': p.paidKHR,
+        'Owed Remain ($)': p.owedRemain,
+        'Status': p.status,
+        'Method': p.method,
+        'Cashier': p.cashierName
+      };
+    });
 
     const worksheet = XLSX.utils.json_to_sheet(exportData);
     const workbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(workbook, worksheet, 'Payments Ledger');
-    XLSX.writeFile(workbook, `FBIS_Payments_${selectedBranch.code}_${new Date().toISOString().split('T')[0]}.xlsx`);
+    XLSX.writeFile(workbook, `FBIS_Payments_${selectedBranch.code}_${semesterFilter}_${new Date().toISOString().split('T')[0]}.xlsx`);
   };
 
   const handleResetFilters = () => {
@@ -136,6 +176,7 @@ export const PaymentsView: React.FC = () => {
     setFilterStartDate('');
     setFilterTitle('');
     setFilterClass('');
+    setSemesterFilter('all');
     setCurrentPage(1);
   };
 
@@ -146,6 +187,126 @@ export const PaymentsView: React.FC = () => {
 
   return (
     <div className="space-y-4">
+      {/* Semester Partition & Financial Overview Card */}
+      <div className="bg-white p-4 rounded-xl shadow-xs border border-slate-200 space-y-3">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 pb-3 border-b border-slate-100">
+          <div className="flex items-center gap-2.5">
+            <div className="w-9 h-9 rounded-lg bg-blue-100 text-blue-700 flex items-center justify-center shrink-0">
+              <Calendar className="w-5 h-5" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <h3 className="text-sm font-bold text-slate-900 font-khmer">
+                  បែងចែកចំណូល & បំណុលសិស្សតាមឆមាស (Semester Financial Partition)
+                </h3>
+                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 font-mono border border-blue-200">
+                  {selectedAcademicYear}
+                </span>
+              </div>
+              <p className="text-[11px] text-slate-500 font-khmer">
+                ឆមាសទី១: <b>{formatKhmerDate(semesterConfig.semester1StartDate)}</b> ដល់ <b>{formatKhmerDate(semesterConfig.semester1EndDate)}</b> | ឆមាសទី២: <b>{formatKhmerDate(semesterConfig.semester2StartDate)}</b> ដល់ <b>{formatKhmerDate(semesterConfig.semester2EndDate)}</b>
+              </p>
+            </div>
+          </div>
+
+          {/* Academic Year Selector */}
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-semibold text-slate-600 font-khmer">ឆ្នាំសិក្សា:</span>
+            <select
+              value={selectedAcademicYear}
+              onChange={(e) => {
+                setSelectedAcademicYear(e.target.value);
+                setCurrentPage(1);
+              }}
+              className="h-8 px-2.5 text-xs font-mono font-bold border border-slate-300 rounded-lg bg-white focus:ring-1 focus:ring-blue-500 focus:outline-none"
+            >
+              {settings.academicYears.map(yr => (
+                <option key={yr} value={yr}>{yr}</option>
+              ))}
+            </select>
+          </div>
+        </div>
+
+        {/* Partition Tabs & Real-time Stats */}
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          {/* Quick Filter Buttons */}
+          <div className="flex flex-wrap items-center gap-1.5">
+            <button
+              onClick={() => {
+                setSemesterFilter('all');
+                setCurrentPage(1);
+              }}
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer font-khmer flex items-center gap-1.5 ${
+                semesterFilter === 'all'
+                  ? 'bg-slate-900 text-white shadow-xs'
+                  : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+              }`}
+            >
+              <span>ទាំងអស់ (All Year)</span>
+              <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-mono ${
+                semesterFilter === 'all' ? 'bg-white/20 text-white' : 'bg-slate-200 text-slate-700'
+              }`}>
+                ${partitionStats.total.incomeUSD.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+              </span>
+            </button>
+
+            <button
+              onClick={() => {
+                setSemesterFilter('semester1');
+                setCurrentPage(1);
+              }}
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer font-khmer flex items-center gap-1.5 ${
+                semesterFilter === 'semester1'
+                  ? 'bg-blue-600 text-white shadow-xs'
+                  : 'bg-blue-50 text-blue-700 hover:bg-blue-100 border border-blue-200'
+              }`}
+            >
+              <span>ឆមាសទី១ (Semester 1)</span>
+              <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-mono ${
+                semesterFilter === 'semester1' ? 'bg-white/20 text-white' : 'bg-blue-200/80 text-blue-900'
+              }`}>
+                ${partitionStats.semester1.incomeUSD.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+              </span>
+            </button>
+
+            <button
+              onClick={() => {
+                setSemesterFilter('semester2');
+                setCurrentPage(1);
+              }}
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer font-khmer flex items-center gap-1.5 ${
+                semesterFilter === 'semester2'
+                  ? 'bg-emerald-600 text-white shadow-xs'
+                  : 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200'
+              }`}
+            >
+              <span>ឆមាសទី២ (Semester 2)</span>
+              <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-mono ${
+                semesterFilter === 'semester2' ? 'bg-white/20 text-white' : 'bg-emerald-200/80 text-emerald-900'
+              }`}>
+                ${partitionStats.semester2.incomeUSD.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+              </span>
+            </button>
+          </div>
+
+          {/* Stat Badges for Active Semester Filter */}
+          <div className="flex items-center gap-4 text-xs">
+            <div className="flex items-center gap-1.5">
+              <span className="text-slate-500 font-khmer">ចំណូលបានប្រមូល:</span>
+              <span className="font-mono font-bold text-emerald-600">
+                ${(semesterFilter === 'semester1' ? partitionStats.semester1.incomeUSD : semesterFilter === 'semester2' ? partitionStats.semester2.incomeUSD : partitionStats.total.incomeUSD).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+              </span>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <span className="text-slate-500 font-khmer">បំណុលសិស្សនៅសល់:</span>
+              <span className="font-mono font-bold text-rose-600">
+                ${(semesterFilter === 'semester1' ? partitionStats.semester1.debtUSD : semesterFilter === 'semester2' ? partitionStats.semester2.debtUSD : partitionStats.total.debtUSD).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+              </span>
+            </div>
+          </div>
+        </div>
+      </div>
+
       {/* Top Filter Bar matching Screenshot 111725 */}
       <div className="bg-white p-4 rounded-xl shadow-xs border border-slate-200">
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
@@ -320,21 +481,33 @@ export const PaymentsView: React.FC = () => {
                         {p.title}
                       </td>
                       <td className="py-2.5 px-2 text-center">
-                        {p.paymentType?.includes('Term 1') || p.paymentType === 'ត្រីមាសទី១' ? (
-                          <span className="bg-purple-100 text-purple-800 font-bold px-1.5 py-0.5 rounded text-[10px] font-mono">T1</span>
-                        ) : p.paymentType?.includes('Term 2') || p.paymentType === 'ត្រីមាសទី២' ? (
-                          <span className="bg-purple-100 text-purple-800 font-bold px-1.5 py-0.5 rounded text-[10px] font-mono">T2</span>
-                        ) : p.paymentType?.includes('Term 3') || p.paymentType === 'ត្រីមាសទី៣' ? (
-                          <span className="bg-purple-100 text-purple-800 font-bold px-1.5 py-0.5 rounded text-[10px] font-mono">T3</span>
-                        ) : p.paymentType?.includes('Term 4') || p.paymentType === 'ត្រីមាសទី៤' ? (
-                          <span className="bg-purple-100 text-purple-800 font-bold px-1.5 py-0.5 rounded text-[10px] font-mono">T4</span>
-                        ) : p.paymentType?.includes('Term') ? (
-                          <span className="bg-purple-100 text-purple-800 font-bold px-1.5 py-0.5 rounded text-[10px] font-mono">Term</span>
-                        ) : p.paymentType?.includes('ពេញមួយឆ្នាំ') || p.paymentType?.includes('Annual') ? (
-                          <span className="bg-blue-100 text-blue-800 font-bold px-1.5 py-0.5 rounded text-[10px] font-mono">12M</span>
-                        ) : (
-                          <span className="text-slate-600 font-mono text-[10px]">{p.paymentType}</span>
-                        )}
+                        <div className="flex flex-col items-center gap-0.5">
+                          {p.paymentType?.includes('Term 1') || p.paymentType === 'ត្រីមាសទី១' ? (
+                            <span className="bg-purple-100 text-purple-800 font-bold px-1.5 py-0.5 rounded text-[10px] font-mono">T1</span>
+                          ) : p.paymentType?.includes('Term 2') || p.paymentType === 'ត្រីមាសទី២' ? (
+                            <span className="bg-purple-100 text-purple-800 font-bold px-1.5 py-0.5 rounded text-[10px] font-mono">T2</span>
+                          ) : p.paymentType?.includes('Term 3') || p.paymentType === 'ត្រីមាសទី៣' ? (
+                            <span className="bg-purple-100 text-purple-800 font-bold px-1.5 py-0.5 rounded text-[10px] font-mono">T3</span>
+                          ) : p.paymentType?.includes('Term 4') || p.paymentType === 'ត្រីមាសទី៤' ? (
+                            <span className="bg-purple-100 text-purple-800 font-bold px-1.5 py-0.5 rounded text-[10px] font-mono">T4</span>
+                          ) : p.paymentType?.includes('Term') ? (
+                            <span className="bg-purple-100 text-purple-800 font-bold px-1.5 py-0.5 rounded text-[10px] font-mono">Term</span>
+                          ) : p.paymentType?.includes('ពេញមួយឆ្នាំ') || p.paymentType?.includes('Annual') ? (
+                            <span className="bg-blue-100 text-blue-800 font-bold px-1.5 py-0.5 rounded text-[10px] font-mono">12M</span>
+                          ) : (
+                            <span className="text-slate-600 font-mono text-[10px]">{p.paymentType}</span>
+                          )}
+                          {(() => {
+                            const sc = classifyInvoiceSemester(p, semesterConfig);
+                            if (sc === 'semester1') {
+                              return <span className="text-[9px] font-bold text-blue-700 bg-blue-50 px-1 rounded font-khmer">ឆមាស១</span>;
+                            }
+                            if (sc === 'semester2') {
+                              return <span className="text-[9px] font-bold text-emerald-700 bg-emerald-50 px-1 rounded font-khmer">ឆមាស២</span>;
+                            }
+                            return null;
+                          })()}
+                        </div>
                       </td>
                       <td className="py-2.5 px-3 font-mono text-[11px] text-slate-500">{p.issuedDate}</td>
                       <td className="py-2.5 px-3 font-mono text-[11px] text-slate-500">{p.startDate}</td>

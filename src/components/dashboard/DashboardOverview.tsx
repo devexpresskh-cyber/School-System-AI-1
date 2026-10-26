@@ -11,8 +11,15 @@ import {
   FileSpreadsheet, 
   Building2, 
   CheckCircle2,
-  Calendar
+  Calendar,
+  Layers
 } from 'lucide-react';
+import { 
+  getSemesterConfig, 
+  calculateSemesterFinancialPartition, 
+  formatKhmerDate,
+  getCurrentSemesterStatus 
+} from '../../utils/semesterUtils';
 
 export const DashboardOverview: React.FC = () => {
   const { 
@@ -24,8 +31,14 @@ export const DashboardOverview: React.FC = () => {
     branchExpenses,
     setActiveTab, 
     setSelectedStudentId,
-    currentUser 
+    currentUser,
+    settings 
   } = useSchool();
+
+  // Semester Date Partition Stats
+  const semesterConfig = getSemesterConfig(settings, settings.activeAcademicYear);
+  const semesterStats = calculateSemesterFinancialPartition(branchPayments, semesterConfig);
+  const semesterStatus = getCurrentSemesterStatus(semesterConfig);
 
   // Financial aggregates
   const totalCollectedUSD = branchPayments.reduce((sum, p) => sum + p.paidUSD, 0);
@@ -144,6 +157,96 @@ export const DashboardOverview: React.FC = () => {
           </div>
           <div className="mt-1 text-[11px] text-purple-700 font-khmer">
             មធ្យមភាគនិទ្ទេសល្អប្រសើរ
+          </div>
+        </div>
+      </div>
+
+      {/* Semester Financial Partition Strip (ឆមាសទី១ និង ឆមាសទី២) */}
+      <div className="bg-white rounded-xl shadow-xs border border-slate-200 p-4 space-y-3">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-2.5 border-b border-slate-100">
+          <div className="flex items-center gap-2">
+            <Calendar className="w-4 h-4 text-blue-600" />
+            <h3 className="text-xs font-bold text-slate-900 font-khmer">
+              ការបែងចែកចំណូល & បំណុលសិស្សតាមឆមាស · ឆ្នាំសិក្សា {settings.activeAcademicYear}
+            </h3>
+            <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 font-khmer border border-blue-200">
+              {semesterStatus.labelKhmer}
+            </span>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setActiveTab('payments')}
+              className="text-xs font-semibold text-blue-600 hover:text-blue-800 font-khmer cursor-pointer"
+            >
+              មើលការបង់ប្រាក់តាមឆមាស &gt;
+            </button>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
+          {/* Semester 1 Card */}
+          <div className="p-3.5 rounded-xl border border-blue-200 bg-gradient-to-br from-blue-50/60 to-white space-y-2">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <span className="w-5 h-5 rounded-full bg-blue-600 text-white text-[11px] font-bold flex items-center justify-center font-mono">
+                  1
+                </span>
+                <span className="font-bold text-blue-950 font-khmer text-xs">
+                  ឆមាសទី១ (Semester 1)
+                </span>
+              </div>
+              <span className="text-[11px] font-mono text-blue-700 bg-blue-100/70 px-2 py-0.5 rounded-md font-semibold">
+                {formatKhmerDate(semesterConfig.semester1StartDate)} → {formatKhmerDate(semesterConfig.semester1EndDate)}
+              </span>
+            </div>
+
+            <div className="grid grid-cols-2 gap-2 pt-1 border-t border-blue-100/70">
+              <div>
+                <span className="text-[11px] text-slate-500 font-khmer block">ចំណូលបានប្រមូល</span>
+                <span className="text-base font-bold font-mono text-emerald-600">
+                  ${semesterStats.semester1.incomeUSD.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                </span>
+              </div>
+              <div>
+                <span className="text-[11px] text-slate-500 font-khmer block">បំណុលសិស្សនៅសល់</span>
+                <span className="text-base font-bold font-mono text-rose-600">
+                  ${semesterStats.semester1.debtUSD.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                </span>
+              </div>
+            </div>
+          </div>
+
+          {/* Semester 2 Card */}
+          <div className="p-3.5 rounded-xl border border-emerald-200 bg-gradient-to-br from-emerald-50/60 to-white space-y-2">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <span className="w-5 h-5 rounded-full bg-emerald-600 text-white text-[11px] font-bold flex items-center justify-center font-mono">
+                  2
+                </span>
+                <span className="font-bold text-emerald-950 font-khmer text-xs">
+                  ឆមាសទី២ (Semester 2)
+                </span>
+              </div>
+              <span className="text-[11px] font-mono text-emerald-700 bg-emerald-100/70 px-2 py-0.5 rounded-md font-semibold">
+                {formatKhmerDate(semesterConfig.semester2StartDate)} → {formatKhmerDate(semesterConfig.semester2EndDate)}
+              </span>
+            </div>
+
+            <div className="grid grid-cols-2 gap-2 pt-1 border-t border-emerald-100/70">
+              <div>
+                <span className="text-[11px] text-slate-500 font-khmer block">ចំណូលបានប្រមូល</span>
+                <span className="text-base font-bold font-mono text-emerald-600">
+                  ${semesterStats.semester2.incomeUSD.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                </span>
+              </div>
+              <div>
+                <span className="text-[11px] text-slate-500 font-khmer block">បំណុលសិស្សនៅសល់</span>
+                <span className="text-base font-bold font-mono text-rose-600">
+                  ${semesterStats.semester2.debtUSD.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                </span>
+              </div>
+            </div>
           </div>
         </div>
       </div>

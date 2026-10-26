@@ -1,9 +1,15 @@
 import React, { useState } from 'react';
 import { useSchool } from '../../context/SchoolContext';
 import { Logo } from '../common/Logo';
-import { Printer, FileSpreadsheet, Download, Building, Table } from 'lucide-react';
+import { Printer, FileSpreadsheet, Download, Building, Table, Calendar, Clock, TrendingUp } from 'lucide-react';
 import { DueReportsMatrix } from '../finance/DueReportsMatrix';
 import * as XLSX from 'xlsx';
+import { 
+  getSemesterConfig, 
+  classifyInvoiceSemester, 
+  calculateSemesterFinancialPartition, 
+  formatKhmerDate 
+} from '../../utils/semesterUtils';
 
 export const OfficialReportsView: React.FC = () => {
   const { 
@@ -17,9 +23,10 @@ export const OfficialReportsView: React.FC = () => {
   } = useSchool();
 
   const [activeReport, setActiveReport] = useState<
-    'due-matrix' | 'arrears-summary' | 'daily-settlement' | 'monthly-revenue'
+    'due-matrix' | 'arrears-summary' | 'semester-partition' | 'daily-settlement' | 'monthly-revenue'
   >('due-matrix');
 
+  const [selectedAcademicYear, setSelectedAcademicYear] = useState<string>(settings.activeAcademicYear || '2025-2026');
   const [reportDate, setReportDate] = useState('2026-05-31');
   const [reportDateKhmer, setReportDateKhmer] = useState('៣១-ឧសភា-២០២៦');
 
@@ -68,6 +75,53 @@ export const OfficialReportsView: React.FC = () => {
     XLSX.writeFile(workbook, `FBIS_Official_Arrears_${selectedBranch.code}.xlsx`);
   };
 
+  // Semester Partition Calculations for Official Report
+  const semesterConfig = getSemesterConfig(settings, selectedAcademicYear);
+  const targetYearPayments = branchPayments.filter(p => !selectedAcademicYear || p.academicYear === selectedAcademicYear || p.academicYear === selectedAcademicYear.slice(0, 4));
+  const activePayments = targetYearPayments.length > 0 ? targetYearPayments : branchPayments;
+  const semesterPartitionStats = calculateSemesterFinancialPartition(activePayments, semesterConfig);
+
+  const semesterGradeRows = settings.gradeLevels.map((lvl, idx) => {
+    const gradePayments = activePayments.filter(p => p.classGrade === lvl || p.classGrade?.includes(lvl));
+    const gradeStats = calculateSemesterFinancialPartition(gradePayments, semesterConfig);
+    const gradeStudents = branchStudents.filter(s => s.classGrade === lvl || s.classGrade?.includes(lvl)).length;
+    return {
+      no: String(idx + 1).padStart(2, '0'),
+      level: lvl,
+      students: gradeStudents,
+      s1Income: gradeStats.semester1.incomeUSD,
+      s1Debt: gradeStats.semester1.debtUSD,
+      s2Income: gradeStats.semester2.incomeUSD,
+      s2Debt: gradeStats.semester2.debtUSD,
+      totalIncome: gradeStats.total.incomeUSD,
+      totalDebt: gradeStats.total.debtUSD,
+      totalPayable: gradeStats.total.incomeUSD + gradeStats.total.debtUSD,
+      rate: (gradeStats.total.incomeUSD + gradeStats.total.debtUSD) > 0 
+        ? Math.round((gradeStats.total.incomeUSD / (gradeStats.total.incomeUSD + gradeStats.total.debtUSD)) * 100) 
+        : 100
+    };
+  }).filter(r => r.students > 0 || r.totalPayable > 0);
+
+  const handleExportSemesterPartitionXLS = () => {
+    const data = semesterGradeRows.map(r => ({
+      'No': r.no,
+      'Grade Level': r.level,
+      'Student Count': r.students,
+      'Semester 1 Income ($)': r.s1Income,
+      'Semester 1 Debt ($)': r.s1Debt,
+      'Semester 2 Income ($)': r.s2Income,
+      'Semester 2 Debt ($)': r.s2Debt,
+      'Annual Income ($)': r.totalIncome,
+      'Annual Debt ($)': r.totalDebt,
+      'Collection Rate (%)': `${r.rate}%`
+    }));
+
+    const worksheet = XLSX.utils.json_to_sheet(data);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, 'Semester Partition');
+    XLSX.writeFile(workbook, `FBIS_Semester_Partition_${selectedAcademicYear}_${selectedBranch.code}.xlsx`);
+  };
+
   return (
     <div className="space-y-4">
       {/* Top Selector Navigation - Hidden on Print */}
@@ -97,6 +151,18 @@ export const OfficialReportsView: React.FC = () => {
           </button>
 
           <button
+            onClick={() => setActiveReport('semester-partition')}
+            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-colors cursor-pointer flex items-center gap-1.5 ${
+              activeReport === 'semester-partition'
+                ? 'bg-blue-600 text-white shadow-xs'
+                : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+            }`}
+          >
+            <Calendar className="w-3.5 h-3.5" />
+            <span>បែងចែកចំណូល & បំណុលតាមឆមាស (Semester Partition)</span>
+          </button>
+
+          <button
             onClick={() => setActiveReport('daily-settlement')}
             className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-colors cursor-pointer ${
               activeReport === 'daily-settlement'
@@ -121,7 +187,7 @@ export const OfficialReportsView: React.FC = () => {
 
         <div className="flex items-center gap-2">
           <button
-            onClick={handleExportOfficialArrearsXLS}
+            onClick={activeReport === 'semester-partition' ? handleExportSemesterPartitionXLS : handleExportOfficialArrearsXLS}
             className="px-3.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold rounded-lg flex items-center gap-1.5 border border-slate-300 transition-colors shadow-2xs cursor-pointer"
           >
             <FileSpreadsheet className="w-4 h-4 text-emerald-600" />
@@ -504,6 +570,263 @@ export const OfficialReportsView: React.FC = () => {
                 ))}
               </tbody>
             </table>
+          </div>
+        </div>
+      )}
+
+      {/* REPORT 5: SEMESTER PARTITION (INCOME & STUDENT DEBT) */}
+      {activeReport === 'semester-partition' && (
+        <div className="bg-white rounded-xl shadow-xs border border-slate-300 p-6 space-y-6 print:border-none print:shadow-none print:p-0">
+          {/* Controls Bar (Hidden on print) */}
+          <div className="no-print bg-slate-50 p-3 rounded-xl border border-slate-200 flex flex-wrap items-center justify-between gap-3 text-xs">
+            <div className="flex items-center gap-2">
+              <span className="font-bold text-slate-700 font-khmer flex items-center gap-1">
+                <Calendar className="w-4 h-4 text-blue-600" />
+                <span>ជ្រើសរើសឆ្នាំសិក្សា:</span>
+              </span>
+              <div className="flex items-center gap-1.5">
+                {settings.academicYears.map(yr => (
+                  <button
+                    key={yr}
+                    onClick={() => setSelectedAcademicYear(yr)}
+                    className={`px-3 py-1 rounded-lg text-xs font-mono font-bold transition-all cursor-pointer ${
+                      selectedAcademicYear === yr
+                        ? 'bg-blue-600 text-white shadow-xs'
+                        : 'bg-white text-slate-700 hover:bg-slate-200 border border-slate-200'
+                    }`}
+                  >
+                    {yr}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="text-xs text-slate-600 font-khmer">
+              ឆមាសទី១: <b>{formatKhmerDate(semesterConfig.semester1StartDate)} → {formatKhmerDate(semesterConfig.semester1EndDate)}</b> | ឆមាសទី២: <b>{formatKhmerDate(semesterConfig.semester2StartDate)} → {formatKhmerDate(semesterConfig.semester2EndDate)}</b>
+            </div>
+          </div>
+
+          {/* Official Kingdom Header */}
+          <div className="flex items-start justify-between border-b-2 border-slate-800 pb-4">
+            <div className="space-y-1">
+              <div className="flex items-center gap-3">
+                <Logo className="w-12 h-12" />
+                <div>
+                  <h1 className="text-base font-bold font-khmer text-slate-900 leading-tight">
+                    {settings.schoolNameKhmer}
+                  </h1>
+                  <h2 className="text-xs font-bold tracking-wider text-slate-700">
+                    {settings.schoolNameEnglish}
+                  </h2>
+                  <div className="text-[11px] text-slate-500 font-khmer">
+                    {selectedBranch.nameKhmer} · {selectedBranch.city}
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="text-center font-khmer space-y-0.5">
+              <div className="text-xs font-bold text-slate-900">{settings.kingdomHeaderKhmer}</div>
+              <div className="text-xs font-bold text-slate-800">{settings.mottoKhmer}</div>
+              <div className="text-xs text-amber-600">***</div>
+            </div>
+          </div>
+
+          {/* Report Title */}
+          <div className="text-center space-y-1">
+            <h2 className="text-base sm:text-lg font-bold font-khmer text-slate-900">
+              របាយការណ៍បែងចែកចំណូល និងបំណុលសិស្ស ឆមាសទី១ និងឆមាសទី២
+            </h2>
+            <h3 className="text-xs font-bold text-slate-600 font-mono tracking-wide">
+              OFFICIAL SEMESTER INCOME & STUDENT DEBT PARTITION REPORT — ACADEMIC YEAR {selectedAcademicYear}
+            </h3>
+            <p className="text-xs font-khmer text-slate-600">
+              កាលបរិច្ឆេទឆមាសទី១ ({formatKhmerDate(semesterConfig.semester1StartDate)} ដល់ {formatKhmerDate(semesterConfig.semester1EndDate)}) · កាលបរិច្ឆេទឆមាសទី២ ({formatKhmerDate(semesterConfig.semester2StartDate)} ដល់ {formatKhmerDate(semesterConfig.semester2EndDate)})
+            </p>
+          </div>
+
+          {/* Financial Partition Summary Cards */}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <div className="p-4 rounded-xl border border-blue-200 bg-blue-50/50 space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="font-bold text-blue-900 font-khmer text-xs">ឆមាសទី១ (Semester 1)</span>
+                <span className="text-[10px] font-mono text-blue-700 bg-blue-100 px-1.5 py-0.5 rounded">
+                  {formatKhmerDate(semesterConfig.semester1StartDate)} - {formatKhmerDate(semesterConfig.semester1EndDate)}
+                </span>
+              </div>
+              <div className="space-y-1 pt-1 border-t border-blue-100 text-xs">
+                <div className="flex justify-between items-center">
+                  <span className="text-slate-600 font-khmer">ចំណូលបានប្រមូល:</span>
+                  <span className="font-mono font-bold text-emerald-700">
+                    ${semesterPartitionStats.semester1.incomeUSD.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                  </span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-slate-600 font-khmer">បំណុលសិស្សនៅសល់:</span>
+                  <span className="font-mono font-bold text-rose-600">
+                    ${semesterPartitionStats.semester1.debtUSD.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            <div className="p-4 rounded-xl border border-emerald-200 bg-emerald-50/50 space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="font-bold text-emerald-900 font-khmer text-xs">ឆមាសទី២ (Semester 2)</span>
+                <span className="text-[10px] font-mono text-emerald-700 bg-emerald-100 px-1.5 py-0.5 rounded">
+                  {formatKhmerDate(semesterConfig.semester2StartDate)} - {formatKhmerDate(semesterConfig.semester2EndDate)}
+                </span>
+              </div>
+              <div className="space-y-1 pt-1 border-t border-emerald-100 text-xs">
+                <div className="flex justify-between items-center">
+                  <span className="text-slate-600 font-khmer">ចំណូលបានប្រមូល:</span>
+                  <span className="font-mono font-bold text-emerald-700">
+                    ${semesterPartitionStats.semester2.incomeUSD.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                  </span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-slate-600 font-khmer">បំណុលសិស្សនៅសល់:</span>
+                  <span className="font-mono font-bold text-rose-600">
+                    ${semesterPartitionStats.semester2.debtUSD.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            <div className="p-4 rounded-xl border border-purple-200 bg-purple-50/50 space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="font-bold text-purple-900 font-khmer text-xs">សរុបប្រចាំឆ្នាំ ({selectedAcademicYear})</span>
+                <span className="text-[10px] font-mono text-purple-700 bg-purple-100 px-1.5 py-0.5 rounded">
+                  Full Year
+                </span>
+              </div>
+              <div className="space-y-1 pt-1 border-t border-purple-100 text-xs">
+                <div className="flex justify-between items-center">
+                  <span className="text-slate-600 font-khmer">សរុបចំណូល (USD):</span>
+                  <span className="font-mono font-bold text-slate-900">
+                    ${semesterPartitionStats.total.incomeUSD.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                  </span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-slate-600 font-khmer">សរុបបំណុល (USD):</span>
+                  <span className="font-mono font-bold text-rose-600">
+                    ${semesterPartitionStats.total.debtUSD.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                  </span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Master Table */}
+          <div className="overflow-x-auto border border-slate-300">
+            <table className="w-full text-xs text-left border-collapse border border-slate-300 whitespace-nowrap">
+              <thead>
+                <tr className="bg-slate-100 text-slate-800 font-khmer text-center">
+                  <th rowSpan={2} className="border border-slate-300 px-3 py-2">ល.រ</th>
+                  <th rowSpan={2} className="border border-slate-300 px-4 py-2 text-left">កម្រិតថ្នាក់ (Grade Level)</th>
+                  <th rowSpan={2} className="border border-slate-300 px-2 py-2">សិស្ស</th>
+                  <th colSpan={2} className="border border-slate-300 px-3 py-1 bg-blue-50 text-blue-900 font-bold">
+                    ឆមាសទី១ ({formatKhmerDate(semesterConfig.semester1StartDate)} ដល់ {formatKhmerDate(semesterConfig.semester1EndDate)})
+                  </th>
+                  <th colSpan={2} className="border border-slate-300 px-3 py-1 bg-emerald-50 text-emerald-900 font-bold">
+                    ឆមាសទី២ ({formatKhmerDate(semesterConfig.semester2StartDate)} ដល់ {formatKhmerDate(semesterConfig.semester2EndDate)})
+                  </th>
+                  <th colSpan={3} className="border border-slate-300 px-3 py-1 bg-slate-200 text-slate-900 font-bold">
+                    សរុបប្រចាំឆ្នាំ ({selectedAcademicYear})
+                  </th>
+                </tr>
+                <tr className="bg-slate-50 font-mono text-[11px] text-right">
+                  <th className="border border-slate-300 px-3 py-1.5 text-emerald-700 bg-blue-50/30">ចំណូលបានបង់ ($)</th>
+                  <th className="border border-slate-300 px-3 py-1.5 text-rose-600 bg-blue-50/30">នៅជំពាក់ ($)</th>
+                  <th className="border border-slate-300 px-3 py-1.5 text-emerald-700 bg-emerald-50/30">ចំណូលបានបង់ ($)</th>
+                  <th className="border border-slate-300 px-3 py-1.5 text-rose-600 bg-emerald-50/30">នៅជំពាក់ ($)</th>
+                  <th className="border border-slate-300 px-3 py-1.5 text-slate-900 bg-slate-100">ចំណូលសរុប ($)</th>
+                  <th className="border border-slate-300 px-3 py-1.5 text-rose-600 bg-slate-100">បំណុលសរុប ($)</th>
+                  <th className="border border-slate-300 px-2 py-1.5 text-center bg-slate-100">អត្រា (%)</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-200 font-mono text-[11px] text-right">
+                {semesterGradeRows.map((r) => (
+                  <tr key={r.level} className="hover:bg-slate-50">
+                    <td className="border border-slate-300 px-3 py-2 text-center text-slate-500">{r.no}</td>
+                    <td className="border border-slate-300 px-4 py-2 text-left font-khmer font-bold text-slate-900">{r.level}</td>
+                    <td className="border border-slate-300 px-2 py-2 text-center">{r.students}</td>
+                    <td className="border border-slate-300 px-3 py-2 text-emerald-700 font-semibold">${r.s1Income.toFixed(2)}</td>
+                    <td className={`border border-slate-300 px-3 py-2 ${r.s1Debt > 0 ? 'text-rose-600 font-bold' : 'text-slate-400'}`}>${r.s1Debt.toFixed(2)}</td>
+                    <td className="border border-slate-300 px-3 py-2 text-emerald-700 font-semibold">${r.s2Income.toFixed(2)}</td>
+                    <td className={`border border-slate-300 px-3 py-2 ${r.s2Debt > 0 ? 'text-rose-600 font-bold' : 'text-slate-400'}`}>${r.s2Debt.toFixed(2)}</td>
+                    <td className="border border-slate-300 px-3 py-2 font-bold text-slate-900">${r.totalIncome.toFixed(2)}</td>
+                    <td className={`border border-slate-300 px-3 py-2 ${r.totalDebt > 0 ? 'text-rose-600 font-bold' : 'text-slate-400'}`}>${r.totalDebt.toFixed(2)}</td>
+                    <td className="border border-slate-300 px-2 py-2 text-center font-bold text-blue-700">{r.rate}%</td>
+                  </tr>
+                ))}
+              </tbody>
+              <tfoot>
+                <tr className="bg-slate-200 font-bold font-mono text-right text-xs text-slate-900">
+                  <td colSpan={2} className="border border-slate-400 px-4 py-2.5 text-center font-khmer">
+                    សរុបរួម (GRAND TOTAL)
+                  </td>
+                  <td className="border border-slate-400 px-2 py-2.5 text-center">
+                    {semesterGradeRows.reduce((sum, r) => sum + r.students, 0)}
+                  </td>
+                  <td className="border border-slate-400 px-3 py-2.5 text-emerald-700">
+                    ${semesterPartitionStats.semester1.incomeUSD.toFixed(2)}
+                  </td>
+                  <td className="border border-slate-400 px-3 py-2.5 text-rose-700">
+                    ${semesterPartitionStats.semester1.debtUSD.toFixed(2)}
+                  </td>
+                  <td className="border border-slate-400 px-3 py-2.5 text-emerald-700">
+                    ${semesterPartitionStats.semester2.incomeUSD.toFixed(2)}
+                  </td>
+                  <td className="border border-slate-400 px-3 py-2.5 text-rose-700">
+                    ${semesterPartitionStats.semester2.debtUSD.toFixed(2)}
+                  </td>
+                  <td className="border border-slate-400 px-3 py-2.5 text-slate-900">
+                    ${semesterPartitionStats.total.incomeUSD.toFixed(2)}
+                  </td>
+                  <td className="border border-slate-400 px-3 py-2.5 text-rose-700">
+                    ${semesterPartitionStats.total.debtUSD.toFixed(2)}
+                  </td>
+                  <td className="border border-slate-400 px-2 py-2.5 text-center text-blue-900">
+                    {Math.round((semesterPartitionStats.total.incomeUSD / (semesterPartitionStats.total.incomeUSD + semesterPartitionStats.total.debtUSD || 1)) * 100)}%
+                  </td>
+                </tr>
+              </tfoot>
+            </table>
+          </div>
+
+          {/* Official Signatures Footer */}
+          <div className="pt-8 grid grid-cols-3 gap-6 text-center font-khmer text-xs">
+            <div className="space-y-16">
+              <div>
+                <p className="font-bold">រៀបចំដោយ</p>
+                <p className="text-[11px] text-slate-500 font-sans">Prepared by (Cashier / Accountant)</p>
+              </div>
+              <div className="border-t border-slate-400 w-36 mx-auto pt-1 font-bold">
+                ស្រី ណុច
+              </div>
+            </div>
+
+            <div className="space-y-16">
+              <div>
+                <p className="font-bold">ត្រួតពិនិត្យដោយ</p>
+                <p className="text-[11px] text-slate-500 font-sans">Verified by (Head of Finance)</p>
+              </div>
+              <div className="border-t border-slate-400 w-36 mx-auto pt-1 font-bold">
+                សុខ ចិន្តា
+              </div>
+            </div>
+
+            <div className="space-y-16">
+              <div>
+                <p className="text-[11px] text-slate-500">សៀមរាប, ថ្ងៃទី....... ខែ....... ឆ្នាំ២០២៦</p>
+                <p className="font-bold">នាយកសាខា / ប្រធានសាលា</p>
+                <p className="text-[11px] text-slate-500 font-sans">Campus Director (Approved by)</p>
+              </div>
+              <div className="border-t border-slate-400 w-44 mx-auto pt-1 font-bold">
+                {selectedBranch.directorName}
+              </div>
+            </div>
           </div>
         </div>
       )}

@@ -7,6 +7,7 @@ import {
   ServiceItem,
   AcademicRecord, 
   SystemSettings, 
+  SemesterDateConfig,
   ExpenseRecord,
   CallNote,
   FeeCategory,
@@ -1059,6 +1060,41 @@ export const INITIAL_EXPENSES: ExpenseRecord[] = [
   }
 ];
 
+export const DEFAULT_SEMESTER_CONFIGS: Record<string, SemesterDateConfig> = {
+  '2023-2024': {
+    academicYear: '2023-2024',
+    semester1StartDate: '2023-10-01',
+    semester1EndDate: '2024-02-29',
+    semester2StartDate: '2024-03-01',
+    semester2EndDate: '2024-07-31',
+    notes: 'ប្រតិទិនសិក្សាផ្លូវការក្រសួងអប់រំ យុវជន និងកីឡា'
+  },
+  '2024-2025': {
+    academicYear: '2024-2025',
+    semester1StartDate: '2024-10-01',
+    semester1EndDate: '2025-02-28',
+    semester2StartDate: '2025-03-01',
+    semester2EndDate: '2025-07-31',
+    notes: 'ប្រតិទិនសិក្សាផ្លូវការក្រសួងអប់រំ យុវជន និងកីឡា'
+  },
+  '2025-2026': {
+    academicYear: '2025-2026',
+    semester1StartDate: '2025-10-01',
+    semester1EndDate: '2026-02-28',
+    semester2StartDate: '2026-03-01',
+    semester2EndDate: '2026-07-31',
+    notes: 'ប្រតិទិនសិក្សាផ្លូវការក្រសួងអប់រំ យុវជន និងកីឡា (ឆ្នាំសិក្សាសកម្ម)'
+  },
+  '2026-2027': {
+    academicYear: '2026-2027',
+    semester1StartDate: '2026-10-01',
+    semester1EndDate: '2027-02-28',
+    semester2StartDate: '2027-03-01',
+    semester2EndDate: '2027-07-31',
+    notes: 'ប្រតិទិនសិក្សាគ្រោងទុក'
+  }
+};
+
 export const INITIAL_SETTINGS: SystemSettings = {
   schoolNameKhmer: 'សាលា អន្តរជាតិ ភ្លឺរស្មីក្រោយ',
   schoolNameEnglish: 'FUTURE BRIGHT INTERNATIONAL SCHOOL',
@@ -1098,6 +1134,7 @@ export const INITIAL_SETTINGS: SystemSettings = {
     'English Level 12'
   ],
   terms: ['ត្រីមាសទី១ (Term 1)', 'ត្រីមាសទី២ (Term 2)', 'ត្រីមាសទី៣ (Term 3)', 'ត្រីមាសទី៤ (Term 4)', 'ឆមាសទី១ (Semester 1)', 'ឆមាសទី២ (Semester 2)', 'ប្រចាំឆ្នាំ (Annual)'],
+  semesterConfigs: DEFAULT_SEMESTER_CONFIGS,
   currencySymbolUSD: '$',
   currencySymbolKHR: '៛',
   autoBackupEnabled: true,
