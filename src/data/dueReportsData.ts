@@ -1165,10 +1165,12 @@ export const INITIAL_KHMER_DUE_RECORDS: KhmerDueRecord[] = [
     "pastYearDue": 0,
     "newYearDue": 0,
     "beginningBalanceDue": 240.5,
+    "newYearSem1": 0,
+    "newYearSem2": 240.5,
     "totalPaid": 0,
     "endingDue": {
-      "semester1": 240.5,
-      "semester2": 0,
+      "semester1": 0,
+      "semester2": 240.5,
       "pastYear": 0,
       "total": 240.5
     },
@@ -1456,10 +1458,12 @@ export const INITIAL_KHMER_DUE_RECORDS: KhmerDueRecord[] = [
     "pastYearDue": 0,
     "newYearDue": 0,
     "beginningBalanceDue": 220.45,
+    "newYearSem1": 0,
+    "newYearSem2": 220.45,
     "totalPaid": 0,
     "endingDue": {
-      "semester1": 220.45,
-      "semester2": 0,
+      "semester1": 0,
+      "semester2": 220.45,
       "pastYear": 0,
       "total": 220.45
     },
@@ -1482,10 +1486,12 @@ export const INITIAL_KHMER_DUE_RECORDS: KhmerDueRecord[] = [
     "pastYearDue": 0,
     "newYearDue": 0,
     "beginningBalanceDue": 282.45,
+    "newYearSem1": 0,
+    "newYearSem2": 282.45,
     "totalPaid": 0,
     "endingDue": {
-      "semester1": 282.45,
-      "semester2": 0,
+      "semester1": 0,
+      "semester2": 282.45,
       "pastYear": 0,
       "total": 282.45
     },
@@ -1582,6 +1588,34 @@ export const INITIAL_KHMER_DUE_RECORDS: KhmerDueRecord[] = [
     "nameEnglish": "Uch Tipor",
     "gender": "ស្រី",
     "dob": "28-Sep-2013",
+    "academicYear": "2025-2026",
+    "status": "កំពុងសិក្សា",
+    "fullTuition": 961,
+    "discountPercent": 25,
+    "incentive": 0,
+    "amountPayable": 720.75,
+    "pastYearDue": 0,
+    "newYearDue": 0,
+    "newYearSem1": 0,
+    "newYearSem2": 0,
+    "beginningBalanceDue": 0,
+    "totalPaid": 0,
+    "endingDue": {
+      "semester1": 0,
+      "semester2": 0,
+      "pastYear": 0,
+      "total": 0
+    },
+    "id": "kdue-60a",
+    "branchId": "fbis-02"
+  },
+  {
+    "no": 60,
+    "studentCode": "FBIS5402",
+    "nameKhmer": "អ៊ុច ទីពរ",
+    "nameEnglish": "Uch Tipor",
+    "gender": "ស្រី",
+    "dob": "28-Sep-2013",
     "academicYear": "2026-2027",
     "status": "កំពុងសិក្សា",
     "fullTuition": 1081,
@@ -1590,15 +1624,17 @@ export const INITIAL_KHMER_DUE_RECORDS: KhmerDueRecord[] = [
     "amountPayable": 810.75,
     "pastYearDue": 0,
     "newYearDue": 261.23,
+    "newYearSem1": 261.23,
+    "newYearSem2": 405.38,
     "beginningBalanceDue": 666.6,
     "totalPaid": 0,
     "endingDue": {
-      "semester1": 405.38,
-      "semester2": 0,
-      "pastYear": 261.23,
+      "semester1": 261.23,
+      "semester2": 405.38,
+      "pastYear": 0,
       "total": 666.6
     },
-    "id": "kdue-60",
+    "id": "kdue-60b",
     "branchId": "fbis-02"
   },
   {
@@ -1626,6 +1662,161 @@ export const INITIAL_KHMER_DUE_RECORDS: KhmerDueRecord[] = [
     },
     "id": "kdue-61",
     "branchId": "fbis-02"
+  },
+  {
+    "no": 62,
+    "studentCode": "FBIS02-002308",
+    "nameKhmer": "ហាក់ស្រ៊ាង ឈុនហួរ",
+    "nameEnglish": "Hak Sreang Chunhour",
+    "className": "ថ្នាក់ទី ៨",
+    "gender": "ប្រុស",
+    "dob": "18-Jun-2010",
+    "academicYear": "2025-2026",
+    "status": "កំពុងសិក្សា",
+    "fullTuition": 1020,
+    "discountPercent": 10,
+    "incentive": 0,
+    "amountPayable": 918,
+    "pastYearDue": 0,
+    "newYearDue": 229.5,
+    "newYearSem1": 0,
+    "newYearSem2": 229.5,
+    "beginningBalanceDue": 229.5,
+    "totalPaid": 0,
+    "endingDue": {
+      "semester1": 0,
+      "semester2": 229.5,
+      "pastYear": 0,
+      "total": 229.5
+    },
+    "id": "kdue-62",
+    "branchId": "fbis-02"
+  },
+  {
+    "no": 63,
+    "studentCode": "FBIS02-002309",
+    "nameKhmer": "ស្រ៊ាង ស៊ីវឡេង",
+    "nameEnglish": "Sreang Sivleng",
+    "className": "ថ្នាក់ទី ៨",
+    "gender": "ស្រី",
+    "dob": "25-Mar-2009",
+    "academicYear": "2025-2026",
+    "status": "កំពុងសិក្សា",
+    "fullTuition": 1020,
+    "discountPercent": 0,
+    "incentive": 0,
+    "amountPayable": 1020,
+    "pastYearDue": 0,
+    "newYearDue": 255,
+    "newYearSem1": 0,
+    "newYearSem2": 255,
+    "beginningBalanceDue": 255,
+    "installment1": {
+      "date": "15-May-26",
+      "invoiceNo": "FBIS012026-000801",
+      "amountReceived": 255
+    },
+    "totalPaid": 255,
+    "endingDue": {
+      "semester1": 0,
+      "semester2": 0,
+      "pastYear": 0,
+      "total": 0
+    },
+    "id": "kdue-63",
+    "branchId": "fbis-02"
+  },
+  {
+    "no": 64,
+    "studentCode": "FBIS02-002310",
+    "nameKhmer": "ទ្រី សេងហៃ",
+    "nameEnglish": "Try Senghai",
+    "className": "ថ្នាក់ទី ៨",
+    "gender": "ប្រុស",
+    "dob": "20-Nov-2009",
+    "academicYear": "2025-2026",
+    "status": "កំពុងសិក្សា",
+    "fullTuition": 1020,
+    "discountPercent": 20,
+    "incentive": 0,
+    "amountPayable": 816,
+    "pastYearDue": 0,
+    "newYearDue": 204,
+    "newYearSem1": 0,
+    "newYearSem2": 204,
+    "beginningBalanceDue": 204,
+    "totalPaid": 0,
+    "endingDue": {
+      "semester1": 0,
+      "semester2": 204,
+      "pastYear": 0,
+      "total": 204
+    },
+    "id": "kdue-64",
+    "branchId": "fbis-02"
+  },
+  {
+    "no": 65,
+    "studentCode": "FBIS02-002312",
+    "nameKhmer": "យ៉ាន់ អាវីយ៉ា",
+    "nameEnglish": "Yan Aviya",
+    "className": "ថ្នាក់ទី ៩",
+    "gender": "ស្រី",
+    "dob": "14-May-2008",
+    "academicYear": "2025-2026",
+    "status": "កំពុងសិក្សា",
+    "fullTuition": 1050,
+    "discountPercent": 10,
+    "incentive": 0,
+    "amountPayable": 945,
+    "pastYearDue": 0,
+    "newYearDue": 236.25,
+    "newYearSem1": 0,
+    "newYearSem2": 236.25,
+    "beginningBalanceDue": 236.25,
+    "installment1": {
+      "date": "20-May-26",
+      "invoiceNo": "FBIS012026-000850",
+      "amountReceived": 236.25
+    },
+    "totalPaid": 236.25,
+    "endingDue": {
+      "semester1": 0,
+      "semester2": 0,
+      "pastYear": 0,
+      "total": 0
+    },
+    "id": "kdue-65",
+    "branchId": "fbis-02"
+  },
+  {
+    "no": 66,
+    "studentCode": "FBIS02-002307",
+    "nameKhmer": "កឿន សុគន្ធ",
+    "nameEnglish": "Koeun Sokun",
+    "className": "ថ្នាក់ទី ៩",
+    "gender": "ស្រី",
+    "dob": "05-Dec-2007",
+    "academicYear": "2025-2026",
+    "status": "កំពុងសិក្សា",
+    "fullTuition": 1050,
+    "discountPercent": 15,
+    "incentive": 0,
+    "amountPayable": 892.5,
+    "pastYearDue": 0,
+    "newYearDue": 223.13,
+    "newYearSem1": 0,
+    "newYearSem2": 223.13,
+    "beginningBalanceDue": 223.13,
+    "totalPaid": 0,
+    "endingDue": {
+      "semester1": 0,
+      "semester2": 223.13,
+      "pastYear": 0,
+      "total": 223.13
+    },
+    "id": "kdue-66",
+    "branchId": "fbis-02"
   }
 ];
 
@@ -1644,62 +1835,26 @@ export const INITIAL_ENGLISH_DUE_RECORDS: EnglishDueRecord[] = [
     "annualIncentive": 0,
     "incentive": 0,
     "amountPayableTuition": 512,
-    "pastYearDue": {
-      "tuition": 100,
-      "adminFee": 0
-    },
+    "amountPayableAdminFee": 100,
+    "pastYearDue": { "tuition": 0, "adminFee": 0 },
     "beginningQuarterDue": {
-      "q1": {
-        "tuition": 0,
-        "adminFee": 0
-      },
-      "q2": {
-        "tuition": 128,
-        "adminFee": 25
-      },
-      "q3": {
-        "tuition": 128,
-        "adminFee": 25
-      },
-      "q4": {
-        "tuition": 128,
-        "adminFee": 25
-      },
-      "newYearTotal": {
-        "tuition": 384,
-        "adminFee": 75
-      }
+      "q1": { "tuition": 0, "adminFee": 0 },
+      "q2": { "tuition": 128, "adminFee": 25 },
+      "q3": { "tuition": 128, "adminFee": 25 },
+      "q4": { "tuition": 128, "adminFee": 25 },
+      "newYearTotal": { "tuition": 384, "adminFee": 75 }
     },
-    "totalPaid": {
-      "tuition": 0,
-      "adminFee": 0
-    },
+    "totalPaid": { "tuition": 0, "adminFee": 0 },
     "paymentCount": 1,
+    "endingTotalDue": { "tuition": 384, "adminFee": 75 },
+    "endingPastYearDue": { "tuition": 0, "adminFee": 0 },
     "endingQuarterDue": {
-      "pastYear": {
-        "tuition": 0,
-        "adminFee": 0
-      },
-      "q1": {
-        "tuition": 0,
-        "adminFee": 0
-      },
-      "q2": {
-        "tuition": 128,
-        "adminFee": 25
-      },
-      "q3": {
-        "tuition": 128,
-        "adminFee": 25
-      },
-      "q4": {
-        "tuition": 128,
-        "adminFee": 25
-      },
-      "total": {
-        "tuition": 384,
-        "adminFee": 75
-      }
+      "pastYear": { "tuition": 0, "adminFee": 0 },
+      "q1": { "tuition": 0, "adminFee": 0 },
+      "q2": { "tuition": 128, "adminFee": 25 },
+      "q3": { "tuition": 128, "adminFee": 25 },
+      "q4": { "tuition": 128, "adminFee": 25 },
+      "total": { "tuition": 384, "adminFee": 75 }
     },
     "id": "edue-1",
     "branchId": "fbis-02"
@@ -1718,62 +1873,26 @@ export const INITIAL_ENGLISH_DUE_RECORDS: EnglishDueRecord[] = [
     "annualIncentive": 0,
     "incentive": 0,
     "amountPayableTuition": 575,
-    "pastYearDue": {
-      "tuition": 100,
-      "adminFee": 0
-    },
+    "amountPayableAdminFee": 100,
+    "pastYearDue": { "tuition": 0, "adminFee": 0 },
     "beginningQuarterDue": {
-      "q1": {
-        "tuition": 0,
-        "adminFee": 0
-      },
-      "q2": {
-        "tuition": 0,
-        "adminFee": 0
-      },
-      "q3": {
-        "tuition": 0,
-        "adminFee": 0
-      },
-      "q4": {
-        "tuition": 0,
-        "adminFee": 0
-      },
-      "newYearTotal": {
-        "tuition": 0,
-        "adminFee": 0
-      }
+      "q1": { "tuition": 0, "adminFee": 0 },
+      "q2": { "tuition": 0, "adminFee": 0 },
+      "q3": { "tuition": 0, "adminFee": 0 },
+      "q4": { "tuition": 0, "adminFee": 0 },
+      "newYearTotal": { "tuition": 0, "adminFee": 0 }
     },
-    "totalPaid": {
-      "tuition": 0,
-      "adminFee": 0
-    },
+    "totalPaid": { "tuition": 0, "adminFee": 0 },
     "paymentCount": 0,
+    "endingTotalDue": { "tuition": 0, "adminFee": 0 },
+    "endingPastYearDue": { "tuition": 0, "adminFee": 0 },
     "endingQuarterDue": {
-      "pastYear": {
-        "tuition": 0,
-        "adminFee": 0
-      },
-      "q1": {
-        "tuition": 0,
-        "adminFee": 0
-      },
-      "q2": {
-        "tuition": 0,
-        "adminFee": 0
-      },
-      "q3": {
-        "tuition": 0,
-        "adminFee": 0
-      },
-      "q4": {
-        "tuition": 0,
-        "adminFee": 0
-      },
-      "total": {
-        "tuition": 0,
-        "adminFee": 0
-      }
+      "pastYear": { "tuition": 0, "adminFee": 0 },
+      "q1": { "tuition": 0, "adminFee": 0 },
+      "q2": { "tuition": 0, "adminFee": 0 },
+      "q3": { "tuition": 0, "adminFee": 0 },
+      "q4": { "tuition": 0, "adminFee": 0 },
+      "total": { "tuition": 0, "adminFee": 0 }
     },
     "id": "edue-2",
     "branchId": "fbis-02"
@@ -1792,62 +1911,26 @@ export const INITIAL_ENGLISH_DUE_RECORDS: EnglishDueRecord[] = [
     "annualIncentive": 0,
     "incentive": 0,
     "amountPayableTuition": 640,
-    "pastYearDue": {
-      "tuition": 100,
-      "adminFee": 0
-    },
+    "amountPayableAdminFee": 100,
+    "pastYearDue": { "tuition": 0, "adminFee": 0 },
     "beginningQuarterDue": {
-      "q1": {
-        "tuition": 0,
-        "adminFee": 0
-      },
-      "q2": {
-        "tuition": 160,
-        "adminFee": 25
-      },
-      "q3": {
-        "tuition": 160,
-        "adminFee": 25
-      },
-      "q4": {
-        "tuition": 160,
-        "adminFee": 25
-      },
-      "newYearTotal": {
-        "tuition": 480,
-        "adminFee": 75
-      }
+      "q1": { "tuition": 0, "adminFee": 0 },
+      "q2": { "tuition": 160, "adminFee": 25 },
+      "q3": { "tuition": 160, "adminFee": 25 },
+      "q4": { "tuition": 160, "adminFee": 25 },
+      "newYearTotal": { "tuition": 480, "adminFee": 75 }
     },
-    "totalPaid": {
-      "tuition": 0,
-      "adminFee": 0
-    },
+    "totalPaid": { "tuition": 0, "adminFee": 0 },
     "paymentCount": 1,
+    "endingTotalDue": { "tuition": 480, "adminFee": 75 },
+    "endingPastYearDue": { "tuition": 0, "adminFee": 0 },
     "endingQuarterDue": {
-      "pastYear": {
-        "tuition": 0,
-        "adminFee": 0
-      },
-      "q1": {
-        "tuition": 0,
-        "adminFee": 0
-      },
-      "q2": {
-        "tuition": 160,
-        "adminFee": 25
-      },
-      "q3": {
-        "tuition": 160,
-        "adminFee": 25
-      },
-      "q4": {
-        "tuition": 160,
-        "adminFee": 25
-      },
-      "total": {
-        "tuition": 480,
-        "adminFee": 75
-      }
+      "pastYear": { "tuition": 0, "adminFee": 0 },
+      "q1": { "tuition": 0, "adminFee": 0 },
+      "q2": { "tuition": 160, "adminFee": 25 },
+      "q3": { "tuition": 160, "adminFee": 25 },
+      "q4": { "tuition": 160, "adminFee": 25 },
+      "total": { "tuition": 480, "adminFee": 75 }
     },
     "id": "edue-3",
     "branchId": "fbis-02"
@@ -1866,62 +1949,26 @@ export const INITIAL_ENGLISH_DUE_RECORDS: EnglishDueRecord[] = [
     "annualIncentive": 0,
     "incentive": 0,
     "amountPayableTuition": 512,
-    "pastYearDue": {
-      "tuition": 100,
-      "adminFee": 0
-    },
+    "amountPayableAdminFee": 100,
+    "pastYearDue": { "tuition": 0, "adminFee": 0 },
     "beginningQuarterDue": {
-      "q1": {
-        "tuition": 0,
-        "adminFee": 0
-      },
-      "q2": {
-        "tuition": 128,
-        "adminFee": 25
-      },
-      "q3": {
-        "tuition": 128,
-        "adminFee": 25
-      },
-      "q4": {
-        "tuition": 128,
-        "adminFee": 25
-      },
-      "newYearTotal": {
-        "tuition": 384,
-        "adminFee": 75
-      }
+      "q1": { "tuition": 0, "adminFee": 0 },
+      "q2": { "tuition": 128, "adminFee": 25 },
+      "q3": { "tuition": 128, "adminFee": 25 },
+      "q4": { "tuition": 128, "adminFee": 25 },
+      "newYearTotal": { "tuition": 384, "adminFee": 75 }
     },
-    "totalPaid": {
-      "tuition": 0,
-      "adminFee": 0
-    },
+    "totalPaid": { "tuition": 0, "adminFee": 0 },
     "paymentCount": 1,
+    "endingTotalDue": { "tuition": 384, "adminFee": 75 },
+    "endingPastYearDue": { "tuition": 0, "adminFee": 0 },
     "endingQuarterDue": {
-      "pastYear": {
-        "tuition": 0,
-        "adminFee": 0
-      },
-      "q1": {
-        "tuition": 0,
-        "adminFee": 0
-      },
-      "q2": {
-        "tuition": 128,
-        "adminFee": 25
-      },
-      "q3": {
-        "tuition": 128,
-        "adminFee": 25
-      },
-      "q4": {
-        "tuition": 128,
-        "adminFee": 25
-      },
-      "total": {
-        "tuition": 384,
-        "adminFee": 75
-      }
+      "pastYear": { "tuition": 0, "adminFee": 0 },
+      "q1": { "tuition": 0, "adminFee": 0 },
+      "q2": { "tuition": 128, "adminFee": 25 },
+      "q3": { "tuition": 128, "adminFee": 25 },
+      "q4": { "tuition": 128, "adminFee": 25 },
+      "total": { "tuition": 384, "adminFee": 75 }
     },
     "id": "edue-4",
     "branchId": "fbis-02"
@@ -1940,62 +1987,26 @@ export const INITIAL_ENGLISH_DUE_RECORDS: EnglishDueRecord[] = [
     "annualIncentive": 0,
     "incentive": 0,
     "amountPayableTuition": 610,
-    "pastYearDue": {
-      "tuition": 100,
-      "adminFee": 0
-    },
+    "amountPayableAdminFee": 100,
+    "pastYearDue": { "tuition": 0, "adminFee": 0 },
     "beginningQuarterDue": {
-      "q1": {
-        "tuition": 0,
-        "adminFee": 0
-      },
-      "q2": {
-        "tuition": 0,
-        "adminFee": 0
-      },
-      "q3": {
-        "tuition": 152.5,
-        "adminFee": 0
-      },
-      "q4": {
-        "tuition": 152.5,
-        "adminFee": 0
-      },
-      "newYearTotal": {
-        "tuition": 305,
-        "adminFee": 0
-      }
+      "q1": { "tuition": 0, "adminFee": 0 },
+      "q2": { "tuition": 0, "adminFee": 0 },
+      "q3": { "tuition": 152.5, "adminFee": 0 },
+      "q4": { "tuition": 152.5, "adminFee": 0 },
+      "newYearTotal": { "tuition": 305, "adminFee": 0 }
     },
-    "totalPaid": {
-      "tuition": 0,
-      "adminFee": 0
-    },
+    "totalPaid": { "tuition": 0, "adminFee": 0 },
     "paymentCount": 1,
+    "endingTotalDue": { "tuition": 305, "adminFee": 0 },
+    "endingPastYearDue": { "tuition": 0, "adminFee": 0 },
     "endingQuarterDue": {
-      "pastYear": {
-        "tuition": 0,
-        "adminFee": 0
-      },
-      "q1": {
-        "tuition": 0,
-        "adminFee": 0
-      },
-      "q2": {
-        "tuition": 0,
-        "adminFee": 0
-      },
-      "q3": {
-        "tuition": 152.5,
-        "adminFee": 0
-      },
-      "q4": {
-        "tuition": 152.5,
-        "adminFee": 0
-      },
-      "total": {
-        "tuition": 305,
-        "adminFee": 0
-      }
+      "pastYear": { "tuition": 0, "adminFee": 0 },
+      "q1": { "tuition": 0, "adminFee": 0 },
+      "q2": { "tuition": 0, "adminFee": 0 },
+      "q3": { "tuition": 152.5, "adminFee": 0 },
+      "q4": { "tuition": 152.5, "adminFee": 0 },
+      "total": { "tuition": 305, "adminFee": 0 }
     },
     "id": "edue-5",
     "branchId": "fbis-02"
@@ -2014,62 +2025,26 @@ export const INITIAL_ENGLISH_DUE_RECORDS: EnglishDueRecord[] = [
     "annualIncentive": 0,
     "incentive": 0,
     "amountPayableTuition": 512,
-    "pastYearDue": {
-      "tuition": 100,
-      "adminFee": 0
-    },
+    "amountPayableAdminFee": 100,
+    "pastYearDue": { "tuition": 0, "adminFee": 0 },
     "beginningQuarterDue": {
-      "q1": {
-        "tuition": 0,
-        "adminFee": 0
-      },
-      "q2": {
-        "tuition": 128,
-        "adminFee": 25
-      },
-      "q3": {
-        "tuition": 128,
-        "adminFee": 25
-      },
-      "q4": {
-        "tuition": 128,
-        "adminFee": 25
-      },
-      "newYearTotal": {
-        "tuition": 384,
-        "adminFee": 75
-      }
+      "q1": { "tuition": 0, "adminFee": 0 },
+      "q2": { "tuition": 128, "adminFee": 25 },
+      "q3": { "tuition": 128, "adminFee": 25 },
+      "q4": { "tuition": 128, "adminFee": 25 },
+      "newYearTotal": { "tuition": 384, "adminFee": 75 }
     },
-    "totalPaid": {
-      "tuition": 0,
-      "adminFee": 0
-    },
+    "totalPaid": { "tuition": 0, "adminFee": 0 },
     "paymentCount": 1,
+    "endingTotalDue": { "tuition": 384, "adminFee": 75 },
+    "endingPastYearDue": { "tuition": 0, "adminFee": 0 },
     "endingQuarterDue": {
-      "pastYear": {
-        "tuition": 0,
-        "adminFee": 0
-      },
-      "q1": {
-        "tuition": 0,
-        "adminFee": 0
-      },
-      "q2": {
-        "tuition": 128,
-        "adminFee": 25
-      },
-      "q3": {
-        "tuition": 128,
-        "adminFee": 25
-      },
-      "q4": {
-        "tuition": 128,
-        "adminFee": 25
-      },
-      "total": {
-        "tuition": 384,
-        "adminFee": 75
-      }
+      "pastYear": { "tuition": 0, "adminFee": 0 },
+      "q1": { "tuition": 0, "adminFee": 0 },
+      "q2": { "tuition": 128, "adminFee": 25 },
+      "q3": { "tuition": 128, "adminFee": 25 },
+      "q4": { "tuition": 128, "adminFee": 25 },
+      "total": { "tuition": 384, "adminFee": 75 }
     },
     "id": "edue-6",
     "branchId": "fbis-02"
@@ -2088,62 +2063,26 @@ export const INITIAL_ENGLISH_DUE_RECORDS: EnglishDueRecord[] = [
     "annualIncentive": 0,
     "incentive": 0,
     "amountPayableTuition": 427,
-    "pastYearDue": {
-      "tuition": 100,
-      "adminFee": 0
-    },
+    "amountPayableAdminFee": 100,
+    "pastYearDue": { "tuition": 0, "adminFee": 0 },
     "beginningQuarterDue": {
-      "q1": {
-        "tuition": 0,
-        "adminFee": 0
-      },
-      "q2": {
-        "tuition": 0,
-        "adminFee": 0
-      },
-      "q3": {
-        "tuition": 106.75,
-        "adminFee": 25
-      },
-      "q4": {
-        "tuition": 106.75,
-        "adminFee": 25
-      },
-      "newYearTotal": {
-        "tuition": 213.5,
-        "adminFee": 50
-      }
+      "q1": { "tuition": 0, "adminFee": 0 },
+      "q2": { "tuition": 0, "adminFee": 0 },
+      "q3": { "tuition": 106.75, "adminFee": 25 },
+      "q4": { "tuition": 106.75, "adminFee": 25 },
+      "newYearTotal": { "tuition": 213.5, "adminFee": 50 }
     },
-    "totalPaid": {
-      "tuition": 0,
-      "adminFee": 0
-    },
+    "totalPaid": { "tuition": 0, "adminFee": 0 },
     "paymentCount": 1,
+    "endingTotalDue": { "tuition": 213.5, "adminFee": 50 },
+    "endingPastYearDue": { "tuition": 0, "adminFee": 0 },
     "endingQuarterDue": {
-      "pastYear": {
-        "tuition": 0,
-        "adminFee": 0
-      },
-      "q1": {
-        "tuition": 0,
-        "adminFee": 0
-      },
-      "q2": {
-        "tuition": 0,
-        "adminFee": 0
-      },
-      "q3": {
-        "tuition": 106.75,
-        "adminFee": 25
-      },
-      "q4": {
-        "tuition": 106.75,
-        "adminFee": 25
-      },
-      "total": {
-        "tuition": 213.5,
-        "adminFee": 50
-      }
+      "pastYear": { "tuition": 0, "adminFee": 0 },
+      "q1": { "tuition": 0, "adminFee": 0 },
+      "q2": { "tuition": 0, "adminFee": 0 },
+      "q3": { "tuition": 106.75, "adminFee": 25 },
+      "q4": { "tuition": 106.75, "adminFee": 25 },
+      "total": { "tuition": 213.5, "adminFee": 50 }
     },
     "id": "edue-7",
     "branchId": "fbis-02"
@@ -2162,62 +2101,26 @@ export const INITIAL_ENGLISH_DUE_RECORDS: EnglishDueRecord[] = [
     "annualIncentive": 0,
     "incentive": 0,
     "amountPayableTuition": 575,
-    "pastYearDue": {
-      "tuition": 100,
-      "adminFee": 0
-    },
+    "amountPayableAdminFee": 100,
+    "pastYearDue": { "tuition": 0, "adminFee": 0 },
     "beginningQuarterDue": {
-      "q1": {
-        "tuition": 0,
-        "adminFee": 0
-      },
-      "q2": {
-        "tuition": 0,
-        "adminFee": 0
-      },
-      "q3": {
-        "tuition": 0,
-        "adminFee": 0
-      },
-      "q4": {
-        "tuition": 0,
-        "adminFee": 0
-      },
-      "newYearTotal": {
-        "tuition": 0,
-        "adminFee": 0
-      }
+      "q1": { "tuition": 0, "adminFee": 0 },
+      "q2": { "tuition": 0, "adminFee": 0 },
+      "q3": { "tuition": 0, "adminFee": 0 },
+      "q4": { "tuition": 0, "adminFee": 0 },
+      "newYearTotal": { "tuition": 0, "adminFee": 0 }
     },
-    "totalPaid": {
-      "tuition": 0,
-      "adminFee": 0
-    },
+    "totalPaid": { "tuition": 0, "adminFee": 0 },
     "paymentCount": 0,
+    "endingTotalDue": { "tuition": 0, "adminFee": 0 },
+    "endingPastYearDue": { "tuition": 0, "adminFee": 0 },
     "endingQuarterDue": {
-      "pastYear": {
-        "tuition": 0,
-        "adminFee": 0
-      },
-      "q1": {
-        "tuition": 0,
-        "adminFee": 0
-      },
-      "q2": {
-        "tuition": 0,
-        "adminFee": 0
-      },
-      "q3": {
-        "tuition": 0,
-        "adminFee": 0
-      },
-      "q4": {
-        "tuition": 0,
-        "adminFee": 0
-      },
-      "total": {
-        "tuition": 0,
-        "adminFee": 0
-      }
+      "pastYear": { "tuition": 0, "adminFee": 0 },
+      "q1": { "tuition": 0, "adminFee": 0 },
+      "q2": { "tuition": 0, "adminFee": 0 },
+      "q3": { "tuition": 0, "adminFee": 0 },
+      "q4": { "tuition": 0, "adminFee": 0 },
+      "total": { "tuition": 0, "adminFee": 0 }
     },
     "id": "edue-8",
     "branchId": "fbis-02"
@@ -2236,62 +2139,26 @@ export const INITIAL_ENGLISH_DUE_RECORDS: EnglishDueRecord[] = [
     "annualIncentive": 0,
     "incentive": 0,
     "amountPayableTuition": 640,
-    "pastYearDue": {
-      "tuition": 100,
-      "adminFee": 0
-    },
+    "amountPayableAdminFee": 100,
+    "pastYearDue": { "tuition": 0, "adminFee": 0 },
     "beginningQuarterDue": {
-      "q1": {
-        "tuition": 106.67,
-        "adminFee": 0
-      },
-      "q2": {
-        "tuition": 160,
-        "adminFee": 25
-      },
-      "q3": {
-        "tuition": 160,
-        "adminFee": 25
-      },
-      "q4": {
-        "tuition": 160,
-        "adminFee": 25
-      },
-      "newYearTotal": {
-        "tuition": 586.67,
-        "adminFee": 75
-      }
+      "q1": { "tuition": 106.67, "adminFee": 0 },
+      "q2": { "tuition": 160, "adminFee": 25 },
+      "q3": { "tuition": 160, "adminFee": 25 },
+      "q4": { "tuition": 160, "adminFee": 25 },
+      "newYearTotal": { "tuition": 586.67, "adminFee": 75 }
     },
-    "totalPaid": {
-      "tuition": 0,
-      "adminFee": 0
-    },
+    "totalPaid": { "tuition": 0, "adminFee": 0 },
     "paymentCount": 1,
+    "endingTotalDue": { "tuition": 586.67, "adminFee": 75 },
+    "endingPastYearDue": { "tuition": 0, "adminFee": 0 },
     "endingQuarterDue": {
-      "pastYear": {
-        "tuition": 0,
-        "adminFee": 0
-      },
-      "q1": {
-        "tuition": 106.67,
-        "adminFee": 0
-      },
-      "q2": {
-        "tuition": 160,
-        "adminFee": 25
-      },
-      "q3": {
-        "tuition": 160,
-        "adminFee": 25
-      },
-      "q4": {
-        "tuition": 160,
-        "adminFee": 25
-      },
-      "total": {
-        "tuition": 586.67,
-        "adminFee": 75
-      }
+      "pastYear": { "tuition": 0, "adminFee": 0 },
+      "q1": { "tuition": 106.67, "adminFee": 0 },
+      "q2": { "tuition": 160, "adminFee": 25 },
+      "q3": { "tuition": 160, "adminFee": 25 },
+      "q4": { "tuition": 160, "adminFee": 25 },
+      "total": { "tuition": 586.67, "adminFee": 75 }
     },
     "id": "edue-9",
     "branchId": "fbis-02"
@@ -2310,38 +2177,29 @@ export const INITIAL_ENGLISH_DUE_RECORDS: EnglishDueRecord[] = [
     "annualIncentive": 0,
     "incentive": 0,
     "amountPayableTuition": 576,
-    "pastYearDue": {
-      "tuition": 100,
-      "adminFee": 0
-    },
+    "amountPayableAdminFee": 100,
+    "pastYearDue": { "tuition": 0, "adminFee": 0 },
     "beginningQuarterDue": {
-      "q1": {
-        "tuition": 0,
-        "adminFee": 0
-      },
-      "q2": {
-        "tuition": 144,
-        "adminFee": 25
-      },
-      "q3": {
-        "tuition": 144,
-        "adminFee": 25
-      },
-      "q4": {
-        "tuition": 144,
-        "adminFee": 25
-      },
-      "newYearTotal": {
-        "tuition": 432,
-        "adminFee": 75
-      }
+      "q1": { "tuition": 0, "adminFee": 0 },
+      "q2": { "tuition": 144, "adminFee": 25 },
+      "q3": { "tuition": 144, "adminFee": 25 },
+      "q4": { "tuition": 144, "adminFee": 25 },
+      "newYearTotal": { "tuition": 432, "adminFee": 75 }
     },
     "installment1": {
       "date": "28-May-26",
-      "invoiceNoTuition": "FBIS2026-000521",
-      "invoiceNoAdmin": "FBIS2026-000522",
       "invoiceNo": "FBIS2026-000521",
+      "invoiceNoTuition": "FBIS2026-000521",
+      "amountPaid": 144,
       "amountTuition": 144,
+      "amountAdmin": 0
+    },
+    "installment2": {
+      "date": "28-May-26",
+      "invoiceNo": "FBIS2026-000522",
+      "invoiceNoAdmin": "FBIS2026-000522",
+      "amountPaid": 25,
+      "amountTuition": 0,
       "amountAdmin": 25
     },
     "totalPaid": {
@@ -2349,31 +2207,15 @@ export const INITIAL_ENGLISH_DUE_RECORDS: EnglishDueRecord[] = [
       "adminFee": 25
     },
     "paymentCount": 1,
+    "endingTotalDue": { "tuition": 288, "adminFee": 50 },
+    "endingPastYearDue": { "tuition": 0, "adminFee": 0 },
     "endingQuarterDue": {
-      "pastYear": {
-        "tuition": 0,
-        "adminFee": 0
-      },
-      "q1": {
-        "tuition": 0,
-        "adminFee": 0
-      },
-      "q2": {
-        "tuition": 0,
-        "adminFee": 0
-      },
-      "q3": {
-        "tuition": 144,
-        "adminFee": 25
-      },
-      "q4": {
-        "tuition": 144,
-        "adminFee": 25
-      },
-      "total": {
-        "tuition": 288,
-        "adminFee": 50
-      }
+      "pastYear": { "tuition": 0, "adminFee": 0 },
+      "q1": { "tuition": 0, "adminFee": 0 },
+      "q2": { "tuition": 0, "adminFee": 0 },
+      "q3": { "tuition": 144, "adminFee": 25 },
+      "q4": { "tuition": 144, "adminFee": 25 },
+      "total": { "tuition": 288, "adminFee": 50 }
     },
     "id": "edue-10",
     "branchId": "fbis-02"
@@ -2392,62 +2234,26 @@ export const INITIAL_ENGLISH_DUE_RECORDS: EnglishDueRecord[] = [
     "annualIncentive": 0,
     "incentive": 0,
     "amountPayableTuition": 576,
-    "pastYearDue": {
-      "tuition": 100,
-      "adminFee": 0
-    },
+    "amountPayableAdminFee": 100,
+    "pastYearDue": { "tuition": 0, "adminFee": 0 },
     "beginningQuarterDue": {
-      "q1": {
-        "tuition": 0,
-        "adminFee": 0
-      },
-      "q2": {
-        "tuition": 144,
-        "adminFee": 25
-      },
-      "q3": {
-        "tuition": 144,
-        "adminFee": 25
-      },
-      "q4": {
-        "tuition": 144,
-        "adminFee": 25
-      },
-      "newYearTotal": {
-        "tuition": 432,
-        "adminFee": 75
-      }
+      "q1": { "tuition": 0, "adminFee": 0 },
+      "q2": { "tuition": 144, "adminFee": 25 },
+      "q3": { "tuition": 144, "adminFee": 25 },
+      "q4": { "tuition": 144, "adminFee": 25 },
+      "newYearTotal": { "tuition": 432, "adminFee": 75 }
     },
-    "totalPaid": {
-      "tuition": 0,
-      "adminFee": 0
-    },
+    "totalPaid": { "tuition": 0, "adminFee": 0 },
     "paymentCount": 1,
+    "endingTotalDue": { "tuition": 432, "adminFee": 75 },
+    "endingPastYearDue": { "tuition": 0, "adminFee": 0 },
     "endingQuarterDue": {
-      "pastYear": {
-        "tuition": 0,
-        "adminFee": 0
-      },
-      "q1": {
-        "tuition": 0,
-        "adminFee": 0
-      },
-      "q2": {
-        "tuition": 144,
-        "adminFee": 25
-      },
-      "q3": {
-        "tuition": 144,
-        "adminFee": 25
-      },
-      "q4": {
-        "tuition": 144,
-        "adminFee": 25
-      },
-      "total": {
-        "tuition": 432,
-        "adminFee": 75
-      }
+      "pastYear": { "tuition": 0, "adminFee": 0 },
+      "q1": { "tuition": 0, "adminFee": 0 },
+      "q2": { "tuition": 144, "adminFee": 25 },
+      "q3": { "tuition": 144, "adminFee": 25 },
+      "q4": { "tuition": 144, "adminFee": 25 },
+      "total": { "tuition": 432, "adminFee": 75 }
     },
     "id": "edue-11",
     "branchId": "fbis-02"
@@ -2466,62 +2272,26 @@ export const INITIAL_ENGLISH_DUE_RECORDS: EnglishDueRecord[] = [
     "annualIncentive": 0,
     "incentive": 0,
     "amountPayableTuition": 576,
-    "pastYearDue": {
-      "tuition": 100,
-      "adminFee": 0
-    },
+    "amountPayableAdminFee": 100,
+    "pastYearDue": { "tuition": 0, "adminFee": 0 },
     "beginningQuarterDue": {
-      "q1": {
-        "tuition": 0,
-        "adminFee": 0
-      },
-      "q2": {
-        "tuition": 144,
-        "adminFee": 25
-      },
-      "q3": {
-        "tuition": 144,
-        "adminFee": 25
-      },
-      "q4": {
-        "tuition": 144,
-        "adminFee": 25
-      },
-      "newYearTotal": {
-        "tuition": 432,
-        "adminFee": 75
-      }
+      "q1": { "tuition": 0, "adminFee": 0 },
+      "q2": { "tuition": 144, "adminFee": 25 },
+      "q3": { "tuition": 144, "adminFee": 25 },
+      "q4": { "tuition": 144, "adminFee": 25 },
+      "newYearTotal": { "tuition": 432, "adminFee": 75 }
     },
-    "totalPaid": {
-      "tuition": 0,
-      "adminFee": 0
-    },
+    "totalPaid": { "tuition": 0, "adminFee": 0 },
     "paymentCount": 1,
+    "endingTotalDue": { "tuition": 432, "adminFee": 75 },
+    "endingPastYearDue": { "tuition": 0, "adminFee": 0 },
     "endingQuarterDue": {
-      "pastYear": {
-        "tuition": 0,
-        "adminFee": 0
-      },
-      "q1": {
-        "tuition": 0,
-        "adminFee": 0
-      },
-      "q2": {
-        "tuition": 144,
-        "adminFee": 25
-      },
-      "q3": {
-        "tuition": 144,
-        "adminFee": 25
-      },
-      "q4": {
-        "tuition": 144,
-        "adminFee": 25
-      },
-      "total": {
-        "tuition": 432,
-        "adminFee": 75
-      }
+      "pastYear": { "tuition": 0, "adminFee": 0 },
+      "q1": { "tuition": 0, "adminFee": 0 },
+      "q2": { "tuition": 144, "adminFee": 25 },
+      "q3": { "tuition": 144, "adminFee": 25 },
+      "q4": { "tuition": 144, "adminFee": 25 },
+      "total": { "tuition": 432, "adminFee": 75 }
     },
     "id": "edue-12",
     "branchId": "fbis-02"
@@ -2540,62 +2310,26 @@ export const INITIAL_ENGLISH_DUE_RECORDS: EnglishDueRecord[] = [
     "annualIncentive": 48,
     "incentive": 48,
     "amountPayableTuition": 412,
-    "pastYearDue": {
-      "tuition": 100,
-      "adminFee": 0
-    },
+    "amountPayableAdminFee": 100,
+    "pastYearDue": { "tuition": 0, "adminFee": 0 },
     "beginningQuarterDue": {
-      "q1": {
-        "tuition": 0,
-        "adminFee": 0
-      },
-      "q2": {
-        "tuition": 0,
-        "adminFee": 0
-      },
-      "q3": {
-        "tuition": 0,
-        "adminFee": 0
-      },
-      "q4": {
-        "tuition": 0,
-        "adminFee": 0
-      },
-      "newYearTotal": {
-        "tuition": 0,
-        "adminFee": 0
-      }
+      "q1": { "tuition": 0, "adminFee": 0 },
+      "q2": { "tuition": 0, "adminFee": 0 },
+      "q3": { "tuition": 0, "adminFee": 0 },
+      "q4": { "tuition": 0, "adminFee": 0 },
+      "newYearTotal": { "tuition": 0, "adminFee": 0 }
     },
-    "totalPaid": {
-      "tuition": 0,
-      "adminFee": 0
-    },
+    "totalPaid": { "tuition": 0, "adminFee": 0 },
     "paymentCount": 0,
+    "endingTotalDue": { "tuition": 0, "adminFee": 0 },
+    "endingPastYearDue": { "tuition": 0, "adminFee": 0 },
     "endingQuarterDue": {
-      "pastYear": {
-        "tuition": 0,
-        "adminFee": 0
-      },
-      "q1": {
-        "tuition": 0,
-        "adminFee": 0
-      },
-      "q2": {
-        "tuition": 0,
-        "adminFee": 0
-      },
-      "q3": {
-        "tuition": 0,
-        "adminFee": 0
-      },
-      "q4": {
-        "tuition": 0,
-        "adminFee": 0
-      },
-      "total": {
-        "tuition": 0,
-        "adminFee": 0
-      }
+      "pastYear": { "tuition": 0, "adminFee": 0 },
+      "q1": { "tuition": 0, "adminFee": 0 },
+      "q2": { "tuition": 0, "adminFee": 0 },
+      "q3": { "tuition": 0, "adminFee": 0 },
+      "q4": { "tuition": 0, "adminFee": 0 },
+      "total": { "tuition": 0, "adminFee": 0 }
     },
     "id": "edue-13",
     "branchId": "fbis-02"
@@ -2614,38 +2348,29 @@ export const INITIAL_ENGLISH_DUE_RECORDS: EnglishDueRecord[] = [
     "annualIncentive": 0,
     "incentive": 0,
     "amountPayableTuition": 512,
-    "pastYearDue": {
-      "tuition": 100,
-      "adminFee": 0
-    },
+    "amountPayableAdminFee": 100,
+    "pastYearDue": { "tuition": 0, "adminFee": 0 },
     "beginningQuarterDue": {
-      "q1": {
-        "tuition": 0,
-        "adminFee": 0
-      },
-      "q2": {
-        "tuition": 128,
-        "adminFee": 25
-      },
-      "q3": {
-        "tuition": 128,
-        "adminFee": 25
-      },
-      "q4": {
-        "tuition": 128,
-        "adminFee": 25
-      },
-      "newYearTotal": {
-        "tuition": 384,
-        "adminFee": 75
-      }
+      "q1": { "tuition": 0, "adminFee": 0 },
+      "q2": { "tuition": 128, "adminFee": 25 },
+      "q3": { "tuition": 128, "adminFee": 25 },
+      "q4": { "tuition": 128, "adminFee": 25 },
+      "newYearTotal": { "tuition": 384, "adminFee": 75 }
     },
     "installment1": {
       "date": "30-May-26",
-      "invoiceNoTuition": "FBIS2026-000531",
-      "invoiceNoAdmin": "FBIS2026-000532",
       "invoiceNo": "FBIS2026-000531",
+      "invoiceNoTuition": "FBIS2026-000531",
+      "amountPaid": 128,
       "amountTuition": 128,
+      "amountAdmin": 0
+    },
+    "installment2": {
+      "date": "30-May-26",
+      "invoiceNo": "FBIS2026-000532",
+      "invoiceNoAdmin": "FBIS2026-000532",
+      "amountPaid": 25,
+      "amountTuition": 0,
       "amountAdmin": 25
     },
     "totalPaid": {
@@ -2653,33 +2378,102 @@ export const INITIAL_ENGLISH_DUE_RECORDS: EnglishDueRecord[] = [
       "adminFee": 25
     },
     "paymentCount": 1,
+    "endingTotalDue": { "tuition": 256, "adminFee": 50 },
+    "endingPastYearDue": { "tuition": 0, "adminFee": 0 },
     "endingQuarterDue": {
-      "pastYear": {
-        "tuition": 0,
-        "adminFee": 0
-      },
-      "q1": {
-        "tuition": 0,
-        "adminFee": 0
-      },
-      "q2": {
-        "tuition": 0,
-        "adminFee": 0
-      },
-      "q3": {
-        "tuition": 128,
-        "adminFee": 25
-      },
-      "q4": {
-        "tuition": 128,
-        "adminFee": 25
-      },
-      "total": {
-        "tuition": 256,
-        "adminFee": 50
-      }
+      "pastYear": { "tuition": 0, "adminFee": 0 },
+      "q1": { "tuition": 0, "adminFee": 0 },
+      "q2": { "tuition": 0, "adminFee": 0 },
+      "q3": { "tuition": 128, "adminFee": 25 },
+      "q4": { "tuition": 128, "adminFee": 25 },
+      "total": { "tuition": 256, "adminFee": 50 }
     },
     "id": "edue-14",
+    "branchId": "fbis-02"
+  },
+  {
+    "no": 15,
+    "studentCode": "FBIS5088",
+    "nameKhmer": "សុខ ម៉ារីណា",
+    "nameEnglish": "Sok Marina",
+    "className": "ថ្នាក់ K2",
+    "gender": "F",
+    "dob": "12-Aug-2020",
+    "academicYear": "2025-2026",
+    "status": "កំពុងសិក្សា",
+    "fullTuition": 680,
+    "discountPercent": 10,
+    "annualIncentive": 0,
+    "incentive": 0,
+    "amountPayableTuition": 612,
+    "amountPayableAdminFee": 100,
+    "pastYearDue": { "tuition": 0, "adminFee": 0 },
+    "beginningQuarterDue": {
+      "q1": { "tuition": 0, "adminFee": 0 },
+      "q2": { "tuition": 153, "adminFee": 25 },
+      "q3": { "tuition": 153, "adminFee": 25 },
+      "q4": { "tuition": 153, "adminFee": 25 },
+      "newYearTotal": { "tuition": 459, "adminFee": 75 }
+    },
+    "totalPaid": { "tuition": 0, "adminFee": 0 },
+    "paymentCount": 1,
+    "endingTotalDue": { "tuition": 459, "adminFee": 75 },
+    "endingPastYearDue": { "tuition": 0, "adminFee": 0 },
+    "endingQuarterDue": {
+      "pastYear": { "tuition": 0, "adminFee": 0 },
+      "q1": { "tuition": 0, "adminFee": 0 },
+      "q2": { "tuition": 153, "adminFee": 25 },
+      "q3": { "tuition": 153, "adminFee": 25 },
+      "q4": { "tuition": 153, "adminFee": 25 },
+      "total": { "tuition": 459, "adminFee": 75 }
+    },
+    "id": "edue-15",
+    "branchId": "fbis-02"
+  },
+  {
+    "no": 16,
+    "studentCode": "FBIS5099",
+    "nameKhmer": "លី សុវណ្ណារិទ្ធ",
+    "nameEnglish": "Ly Sovannarith",
+    "className": "ថ្នាក់ K2",
+    "gender": "M",
+    "dob": "15-May-2020",
+    "academicYear": "2025-2026",
+    "status": "កំពុងសិក្សា",
+    "fullTuition": 680,
+    "discountPercent": 20,
+    "annualIncentive": 0,
+    "incentive": 0,
+    "amountPayableTuition": 544,
+    "amountPayableAdminFee": 100,
+    "pastYearDue": { "tuition": 0, "adminFee": 0 },
+    "beginningQuarterDue": {
+      "q1": { "tuition": 0, "adminFee": 0 },
+      "q2": { "tuition": 136, "adminFee": 25 },
+      "q3": { "tuition": 136, "adminFee": 25 },
+      "q4": { "tuition": 136, "adminFee": 25 },
+      "newYearTotal": { "tuition": 408, "adminFee": 75 }
+    },
+    "installment1": {
+      "date": "25-May-26",
+      "invoiceNo": "FBIS2026-000601",
+      "amountPaid": 161,
+      "amountTuition": 136,
+      "amountAdmin": 25
+    },
+    "totalPaid": { "tuition": 136, "adminFee": 25 },
+    "paymentCount": 1,
+    "endingTotalDue": { "tuition": 272, "adminFee": 50 },
+    "endingPastYearDue": { "tuition": 0, "adminFee": 0 },
+    "endingQuarterDue": {
+      "pastYear": { "tuition": 0, "adminFee": 0 },
+      "q1": { "tuition": 0, "adminFee": 0 },
+      "q2": { "tuition": 0, "adminFee": 0 },
+      "q3": { "tuition": 136, "adminFee": 25 },
+      "q4": { "tuition": 136, "adminFee": 25 },
+      "total": { "tuition": 272, "adminFee": 50 }
+    },
+    "id": "edue-16",
     "branchId": "fbis-02"
   }
 ];

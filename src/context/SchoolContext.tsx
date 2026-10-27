@@ -732,6 +732,88 @@ export const SchoolProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     };
     setPayments(prev => [newPayment, ...prev]);
 
+    // Automatically sync payment into Khmer Due Records if student matches
+    setKhmerDueRecords(prev => prev.map(kr => {
+      const isMatch = (p.studentCode && kr.studentCode.toLowerCase() === p.studentCode.toLowerCase()) ||
+        (p.studentNameKhmer && kr.nameKhmer === p.studentNameKhmer) ||
+        (p.studentName && kr.nameEnglish.toLowerCase() === p.studentName.toLowerCase());
+      if (isMatch) {
+        let inst1 = kr.installment1;
+        let inst2 = kr.installment2;
+        let inst3 = kr.installment3;
+
+        if (!inst1 || !inst1.amountReceived) {
+          inst1 = {
+            date: p.issuedDate || new Date().toISOString().split('T')[0],
+            invoiceNo: p.invoiceNumber,
+            amountReceived: p.paidUSD
+          };
+        } else if (!inst2 || !inst2.amountReceived) {
+          inst2 = {
+            date: p.issuedDate || new Date().toISOString().split('T')[0],
+            invoiceNo: p.invoiceNumber,
+            amountReceived: p.paidUSD
+          };
+        } else {
+          inst3 = {
+            date: p.issuedDate || new Date().toISOString().split('T')[0],
+            invoiceNo: p.invoiceNumber,
+            amountReceived: (kr.installment3?.amountReceived || 0) + p.paidUSD
+          };
+        }
+        const totalPaid = (inst1?.amountReceived || 0) + (inst2?.amountReceived || 0) + (inst3?.amountReceived || 0);
+        return {
+          ...kr,
+          installment1: inst1,
+          installment2: inst2,
+          installment3: inst3,
+          totalPaid
+        };
+      }
+      return kr;
+    }));
+
+    // Automatically sync payment into English Due Records if student matches
+    setEnglishDueRecords(prev => prev.map(er => {
+      const isMatch = (p.studentCode && er.studentCode.toLowerCase() === p.studentCode.toLowerCase()) ||
+        (p.studentNameKhmer && er.nameKhmer === p.studentNameKhmer) ||
+        (p.studentName && er.nameEnglish.toLowerCase() === p.studentName.toLowerCase());
+      if (isMatch) {
+        const titleLower = (p.title || '').toLowerCase();
+        const isAdmin = titleLower.includes('admin') || titleLower.includes('រដ្ឋបាល');
+        let inst1 = er.installment1;
+        let inst2 = er.installment2;
+
+        if (isAdmin) {
+          inst2 = {
+            date: p.issuedDate || new Date().toISOString().split('T')[0],
+            invoiceNo: p.invoiceNumber,
+            amountPaid: p.paidUSD,
+            amountAdmin: p.paidUSD
+          };
+        } else {
+          inst1 = {
+            date: p.issuedDate || new Date().toISOString().split('T')[0],
+            invoiceNo: p.invoiceNumber,
+            amountPaid: p.paidUSD,
+            amountTuition: p.paidUSD
+          };
+        }
+        const totT = (inst1?.amountTuition ?? (inst1?.amountPaid || 0));
+        const totA = (inst2?.amountAdmin ?? (inst2?.amountPaid || 0));
+        return {
+          ...er,
+          installment1: inst1,
+          installment2: inst2,
+          totalPaid: {
+            tuition: totT,
+            adminFee: totA
+          }
+        };
+      }
+      return er;
+    }));
+
     // Send real-time Telegram alert if enabled
     if (
       settings.telegramConfig?.enabled &&
