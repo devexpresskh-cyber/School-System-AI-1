@@ -126,6 +126,13 @@ export interface Student {
   studyShift?: 'morning' | 'afternoon' | string;
   admissionCheckedBy?: string;
   applicationDate?: string;
+  curriculum?: 'khmer' | 'english' | string;
+  tuitionFee?: number;
+  discountPercentage?: number;
+  enrollmentDate?: string;
+  pastYearDue?: number; // ទឹកប្រាក់ជំពាក់ឆ្នាំសិក្សាចាស់ (Last Year Owed)
+  pastYearTuition?: number; // ថ្លៃឈ្នួលសិក្សាជំពាក់ឆ្នាំចាស់
+  pastYearAdmin?: number; // ថ្លៃរដ្ឋបាលជំពាក់ឆ្នាំចាស់
 }
 
 export type CallPurpose = 
@@ -345,5 +352,6 @@ export type NavigationTab =
   | 'reports'
   | 'stock-report'
   | 'excel-import'
+  | 'sql-import'
   | 'settings'
   | 'backup-restore';

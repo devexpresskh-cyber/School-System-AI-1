@@ -11,7 +11,8 @@ import {
   CreditCard, 
   Award, 
   Check, 
-  RotateCcw 
+  RotateCcw,
+  Database
 } from 'lucide-react';
 
 export const ExcelImportView: React.FC = () => {
@@ -19,7 +20,8 @@ export const ExcelImportView: React.FC = () => {
     importStudentsFromExcel, 
     importPaymentsFromExcel, 
     importGradesFromExcel, 
-    selectedBranch 
+    selectedBranch,
+    setActiveTab
   } = useSchool();
 
   const [importType, setImportType] = useState<'students' | 'payments' | 'grades'>('students');
@@ -186,13 +188,23 @@ export const ExcelImportView: React.FC = () => {
             </p>
           </div>
 
-          <button
-            onClick={handleDownloadTemplate}
-            className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold rounded-lg border border-slate-300 flex items-center gap-1.5 shadow-2xs transition-colors cursor-pointer"
-          >
-            <Download className="w-4 h-4 text-emerald-600" />
-            <span>Download {importType.toUpperCase()} Template (.xlsx)</span>
-          </button>
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              onClick={() => setActiveTab('sql-import')}
+              className="px-3.5 py-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-xs font-semibold rounded-lg border border-indigo-200 flex items-center gap-1.5 shadow-2xs transition-colors cursor-pointer"
+            >
+              <Database className="w-4 h-4 text-indigo-600" />
+              <span>SQL Import & Analytics (នាំចូល SQL តាមសាខា)</span>
+            </button>
+
+            <button
+              onClick={handleDownloadTemplate}
+              className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold rounded-lg border border-slate-300 flex items-center gap-1.5 shadow-2xs transition-colors cursor-pointer"
+            >
+              <Download className="w-4 h-4 text-emerald-600" />
+              <span>Download {importType.toUpperCase()} Template (.xlsx)</span>
+            </button>
+          </div>
         </div>
 
         {/* Import Type Selector Tabs */}

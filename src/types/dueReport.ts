@@ -80,6 +80,8 @@ export interface EnglishDueRecord {
   discountPercent: number;
   annualIncentive?: number; // បញ្ចុះតម្លៃ ការលើកទឹកចិត្តក្នុង១ឆ្នាំ
   incentive: number; // ការលើកទឹកចិត្ត
+  paymentType?: string;
+  notes?: string;
   amountPayableTuition: number; // ទឹកប្រាក់ត្រូវបង់ - ថ្លៃឈ្នួលសិក្សា
   amountPayableAdminFee?: number; // ទឹកប្រាក់ត្រូវបង់ - ថ្លៃសេវារដ្ឋបាល ($100.00)
   pastYearDue: {
@@ -95,6 +97,7 @@ export interface EnglishDueRecord {
   };
   installment1?: {
     date: string;
+    adminDate?: string;
     invoiceNo?: string;
     invoiceNoTuition?: string;
     invoiceNoAdmin?: string;
@@ -104,6 +107,7 @@ export interface EnglishDueRecord {
   };
   installment2?: {
     date: string;
+    adminDate?: string;
     invoiceNo?: string;
     invoiceNoTuition?: string;
     invoiceNoAdmin?: string;

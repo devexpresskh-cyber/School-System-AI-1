@@ -361,6 +361,18 @@ export const StudentProfile: React.FC = () => {
                       <span className="text-slate-800 font-medium">{selectedBranch.nameEnglish}</span>
                     </div>
 
+                    <div className="p-3 bg-amber-50/70 border border-amber-200 rounded-xl">
+                      <span className="text-amber-800 text-[11px] font-khmer font-bold block mb-0.5">
+                        បំណុលជំពាក់ឆ្នាំចាស់ (Last Year Owed):
+                      </span>
+                      <span className="text-amber-950 font-mono font-bold text-base">
+                        ${(student.pastYearDue || 0).toFixed(2)}
+                      </span>
+                      <span className="text-[10px] text-amber-700 block mt-0.5 font-khmer">
+                        * Sync ស្វ័យប្រវត្តិទៅកាន់ Column N (Khmer) / Column S&T (English)
+                      </span>
+                    </div>
+
                     <div>
                       <span className="text-slate-400 block mb-0.5">National ID / Citizen Card:</span>
                       <span className="text-slate-800 font-mono">{student.nationalId || '040820060012'}</span>

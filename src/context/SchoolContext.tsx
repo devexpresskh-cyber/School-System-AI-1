@@ -171,6 +171,15 @@ interface SchoolContextType {
   updateEnglishDueRecord: (id: string, rec: Partial<EnglishDueRecord>) => void;
   deleteEnglishDueRecord: (id: string) => void;
 
+  // Due Reports Synchronization & Branch Management
+  syncDueReportWithStudents: () => {
+    syncedCount: number;
+    newAddedKhmer: number;
+    newAddedEnglish: number;
+    newAddedToStudents: number;
+  };
+  updateDueRecordBranch: (recordId: string, program: 'khmer' | 'english', targetBranchId: string) => boolean;
+
   settings: SystemSettings;
   updateSettings: (s: Partial<SystemSettings>) => void;
   updateSemesterConfig: (academicYear: string, config: SemesterDateConfig) => void;
@@ -194,6 +203,86 @@ interface SchoolContextType {
   importPaymentsFromExcel: (rows: any[]) => { successCount: number; errors: string[] };
   importGradesFromExcel: (rows: any[]) => { successCount: number; errors: string[] };
 }
+
+// Helper to ensure EVERY student present in Due Reports (all 62 Grade 7 & 14 K1 students) is registered in the central student database
+export const getInitialUnifiedStudents = (): Student[] => {
+  const unified: Student[] = [...INITIAL_STUDENTS];
+
+  const hasStudent = (code: string, nameKh: string) => {
+    return unified.some(s => 
+      (s.studentCode && s.studentCode.toLowerCase() === code.toLowerCase()) || 
+      (s.roll && s.roll === code) ||
+      (s.nameKhmer && s.nameKhmer.trim() === nameKh.trim())
+    );
+  };
+
+  // Merge all Khmer Due Records (e.g. 62 Grade 7 students)
+  INITIAL_KHMER_DUE_RECORDS.forEach((k) => {
+    if (!hasStudent(k.studentCode, k.nameKhmer)) {
+      unified.push({
+        id: `std-kdue-${k.studentCode}`,
+        studentCode: k.studentCode,
+        nameKhmer: k.nameKhmer,
+        nameEnglish: k.nameEnglish,
+        username: k.studentCode.toLowerCase(),
+        roll: k.studentCode.replace(/\D/g, '') || k.studentCode,
+        classGrade: k.className || 'ថ្នាក់ទី ៧',
+        gender: (k.gender === 'ស្រី' || (k.gender as any) === 'F') ? 'Female' : 'Male',
+        birthday: k.dob || '2013-01-01',
+        phone: '077 473 545',
+        guardianPhone: '077 473 545',
+        address: 'ខេត្តសៀមរាប',
+        parentName: 'អាណាព្យាបាលសិស្ស',
+        avatar: 'https://images.unsplash.com/photo-1544717305-2782549b5136?w=150&auto=format&fit=crop&q=80',
+        branchId: k.branchId || 'fbis-02',
+        status: 'active',
+        registrationDate: '2024-10-01',
+        curriculum: 'khmer',
+        academicYear: k.academicYear || '2025-2026',
+        tuitionFee: k.fullTuition || 981,
+        discountPercentage: k.discountPercent || 0,
+        pastYearDue: k.pastYearDue || 0, // Last Year Owed
+        pastYearTuition: k.pastYearDue || 0,
+        pastYearAdmin: 0
+      });
+    }
+  });
+
+  // Merge all English Due Records (e.g. 14 K1 students)
+  INITIAL_ENGLISH_DUE_RECORDS.forEach((e) => {
+    if (!hasStudent(e.studentCode, e.nameKhmer)) {
+      const pastDue = (e.pastYearDue?.tuition || 0) + (e.pastYearDue?.adminFee || 0);
+      unified.push({
+        id: `std-edue-${e.studentCode}`,
+        studentCode: e.studentCode,
+        nameKhmer: e.nameKhmer,
+        nameEnglish: e.nameEnglish,
+        username: e.studentCode.toLowerCase(),
+        roll: e.studentCode.replace(/\D/g, '') || e.studentCode,
+        classGrade: e.className || 'ថ្នាក់ K1',
+        gender: (e.gender === 'F' || e.gender === 'ស្រី' || (e.gender as any) === 'ស') ? 'Female' : 'Male',
+        birthday: e.dob || '2020-01-01',
+        phone: '077 473 545',
+        guardianPhone: '077 473 545',
+        address: 'ខេត្តសៀមរាប',
+        parentName: 'អាណាព្យាបាលសិស្ស',
+        avatar: 'https://images.unsplash.com/photo-1544717305-2782549b5136?w=150&auto=format&fit=crop&q=80',
+        branchId: e.branchId || 'fbis-02',
+        status: 'active',
+        registrationDate: '2024-10-01',
+        curriculum: 'english',
+        academicYear: e.academicYear || '2025-2026',
+        tuitionFee: e.fullTuition || 640,
+        discountPercentage: e.discountPercent || 0,
+        pastYearDue: pastDue, // Last Year Owed
+        pastYearTuition: e.pastYearDue?.tuition || 0,
+        pastYearAdmin: e.pastYearDue?.adminFee || 0
+      });
+    }
+  });
+
+  return unified;
+};
 
 const STORAGE_KEY = 'fbis_school_management_v2';
 
@@ -234,8 +323,22 @@ export const SchoolProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const [targetPaymentStudent, setTargetPaymentStudent] = useState<Student | null>(null);
 
   const [students, setStudents] = useState<Student[]>(() => {
+    const unifiedInitial = getInitialUnifiedStudents();
     const saved = localStorage.getItem(`${STORAGE_KEY}_students`);
-    return saved ? JSON.parse(saved) : INITIAL_STUDENTS;
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved) as Student[];
+        const existingCodes = new Set(parsed.map(s => (s.studentCode || '').toLowerCase()));
+        const missingFromSaved = unifiedInitial.filter(s => !existingCodes.has((s.studentCode || '').toLowerCase()));
+        if (missingFromSaved.length > 0) {
+          return [...parsed, ...missingFromSaved];
+        }
+        return parsed;
+      } catch (e) {
+        console.error('Failed to parse saved students:', e);
+      }
+    }
+    return unifiedInitial;
   });
 
   const [callNotes, setCallNotes] = useState<CallNote[]>(() => {
@@ -441,11 +544,11 @@ export const SchoolProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
   const branchKhmerDueRecords = currentBranchId === 'all'
     ? khmerDueRecords
-    : khmerDueRecords.filter(r => r.branchId === currentBranchId || r.branchId === 'fbis-02');
+    : khmerDueRecords.filter(r => r.branchId === currentBranchId || (!r.branchId && currentBranchId === 'fbis-02'));
 
   const branchEnglishDueRecords = currentBranchId === 'all'
     ? englishDueRecords
-    : englishDueRecords.filter(r => r.branchId === currentBranchId || r.branchId === 'fbis-02');
+    : englishDueRecords.filter(r => r.branchId === currentBranchId || (!r.branchId && currentBranchId === 'fbis-02'));
 
   const branchCallNotes = currentBranchId === 'all'
     ? callNotes
@@ -595,22 +698,157 @@ export const SchoolProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     return newMovement;
   };
 
-  // Student CRUD
+  // Student CRUD - automatically kept in 100% parity with Due Reports and syncing Last Year Owed
   const addStudent = (s: Omit<Student, 'id'>) => {
     const newStudent: Student = {
       ...s,
       id: `std-${Date.now()}`
     };
     setStudents(prev => [newStudent, ...prev]);
+
+    // Automatically register into corresponding Due Report
+    const isEnglish = 
+      s.curriculum === 'english' || 
+      (s.classGrade && (s.classGrade.toLowerCase().includes('k1') || s.classGrade.toLowerCase().includes('k2') || s.classGrade.toLowerCase().includes('english')));
+
+    const pastDue = s.pastYearDue || 0;
+
+    if (isEnglish) {
+      setEnglishDueRecords(prev => {
+        const tuition = s.tuitionFee || 640;
+        const disc = s.discountPercentage || 0;
+        const qTuition = Number(((tuition * (1 - disc / 100)) / 4).toFixed(2));
+        const qAdmin = 25;
+        const pastTuition = s.pastYearTuition ?? pastDue;
+        const pastAdmin = s.pastYearAdmin ?? 0;
+        const newRec: EnglishDueRecord = {
+          id: `edue-${newStudent.id}-${Date.now()}`,
+          no: prev.length + 1,
+          studentCode: s.studentCode,
+          nameKhmer: s.nameKhmer,
+          nameEnglish: s.nameEnglish,
+          className: s.classGrade || 'ថ្នាក់ K1',
+          gender: s.gender === 'Female' ? 'F' : 'M',
+          dob: s.birthday || '2020-01-01',
+          academicYear: s.academicYear || '2025-2026',
+          status: 'កំពុងសិក្សា',
+          fullTuition: tuition,
+          discountPercent: disc,
+          annualIncentive: 0,
+          incentive: 0,
+          amountPayableTuition: Number((tuition * (1 - disc / 100)).toFixed(2)),
+          amountPayableAdminFee: 100,
+          pastYearDue: { tuition: pastTuition, adminFee: pastAdmin },
+          beginningQuarterDue: {
+            q1: { tuition: 0, adminFee: 0 },
+            q2: { tuition: qTuition, adminFee: qAdmin },
+            q3: { tuition: qTuition, adminFee: qAdmin },
+            q4: { tuition: qTuition, adminFee: qAdmin },
+            newYearTotal: { tuition: Number((qTuition * 3).toFixed(2)), adminFee: qAdmin * 3 }
+          },
+          totalPaid: { tuition: 0, adminFee: 0 },
+          paymentCount: 1,
+          endingQuarterDue: {
+            q1: { tuition: 0, adminFee: 0 },
+            q2: { tuition: qTuition, adminFee: qAdmin },
+            q3: { tuition: qTuition, adminFee: qAdmin },
+            q4: { tuition: qTuition, adminFee: qAdmin }
+          },
+          branchId: s.branchId || 'fbis-02'
+        };
+        return [...prev, newRec];
+      });
+    } else {
+      setKhmerDueRecords(prev => {
+        const tuition = s.tuitionFee || 981;
+        const disc = s.discountPercentage || 0;
+        const semTuition = Number(((tuition * (1 - disc / 100)) / 4).toFixed(2));
+        const newRec: KhmerDueRecord = {
+          id: `kdue-${newStudent.id}-${Date.now()}`,
+          no: prev.length + 1,
+          studentCode: s.studentCode,
+          nameKhmer: s.nameKhmer,
+          nameEnglish: s.nameEnglish,
+          className: s.classGrade || 'ថ្នាក់ទី ៧',
+          gender: s.gender === 'Female' ? 'ស្រី' : 'ប្រុស',
+          dob: s.birthday || '2013-01-01',
+          academicYear: s.academicYear || '2025-2026',
+          status: 'កំពុងសិក្សា',
+          fullTuition: tuition,
+          discountPercent: disc,
+          discountAmount: 0,
+          incentive: 0,
+          amountPayable: Number((tuition * (1 - disc / 100)).toFixed(2)),
+          pastYearDue: pastDue,
+          newYearSem1: 0,
+          newYearSem2: semTuition,
+          beginningBalanceDue: pastDue + semTuition,
+          endingDue: { semester1: 0, semester2: semTuition, pastYear: pastDue, total: pastDue + semTuition },
+          branchId: s.branchId || 'fbis-02'
+        };
+        return [...prev, newRec];
+      });
+    }
+
     return newStudent;
   };
 
   const updateStudent = (id: string, s: Partial<Student>) => {
     setStudents(prev => prev.map(item => item.id === id ? { ...item, ...s } : item));
+
+    // Also sync updates (including Last Year Owed!) to due reports
+    setKhmerDueRecords(prev => prev.map(kr => {
+      const isMatch = kr.id === id || (s.studentCode && kr.studentCode === s.studentCode) || (kr.studentCode && kr.studentCode === id);
+      if (isMatch) {
+        return {
+          ...kr,
+          ...(s.nameKhmer ? { nameKhmer: s.nameKhmer } : {}),
+          ...(s.nameEnglish ? { nameEnglish: s.nameEnglish } : {}),
+          ...(s.classGrade ? { className: s.classGrade } : {}),
+          ...(s.branchId ? { branchId: s.branchId } : {}),
+          ...(s.tuitionFee ? { fullTuition: s.tuitionFee } : {}),
+          ...(s.discountPercentage !== undefined ? { discountPercent: s.discountPercentage } : {}),
+          ...(s.pastYearDue !== undefined ? { pastYearDue: s.pastYearDue } : {})
+        };
+      }
+      return kr;
+    }));
+
+    setEnglishDueRecords(prev => prev.map(er => {
+      const isMatch = er.id === id || (s.studentCode && er.studentCode === s.studentCode) || (er.studentCode && er.studentCode === id);
+      if (isMatch) {
+        return {
+          ...er,
+          ...(s.nameKhmer ? { nameKhmer: s.nameKhmer } : {}),
+          ...(s.nameEnglish ? { nameEnglish: s.nameEnglish } : {}),
+          ...(s.classGrade ? { className: s.classGrade } : {}),
+          ...(s.branchId ? { branchId: s.branchId } : {}),
+          ...(s.tuitionFee ? { fullTuition: s.tuitionFee } : {}),
+          ...(s.discountPercentage !== undefined ? { discountPercent: s.discountPercentage } : {}),
+          ...(s.pastYearDue !== undefined || s.pastYearTuition !== undefined ? {
+            pastYearDue: {
+              tuition: s.pastYearTuition ?? (s.pastYearDue !== undefined ? s.pastYearDue : er.pastYearDue?.tuition || 0),
+              adminFee: s.pastYearAdmin ?? (er.pastYearDue?.adminFee || 0)
+            }
+          } : {})
+        };
+      }
+      return er;
+    }));
   };
 
   const deleteStudent = (id: string) => {
+    const studentToDelete = students.find(s => s.id === id);
     setStudents(prev => prev.filter(item => item.id !== id));
+
+    if (studentToDelete) {
+      setKhmerDueRecords(prev => prev.filter(kr => 
+        kr.id !== id && kr.studentCode !== studentToDelete.studentCode && kr.nameKhmer !== studentToDelete.nameKhmer
+      ));
+      setEnglishDueRecords(prev => prev.filter(er => 
+        er.id !== id && er.studentCode !== studentToDelete.studentCode && er.nameKhmer !== studentToDelete.nameKhmer
+      ));
+    }
   };
 
   const getStudentById = (id: string) => {
@@ -945,6 +1183,279 @@ export const SchoolProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
   const deleteEnglishDueRecord = (id: string) => {
     setEnglishDueRecords(prev => prev.filter(r => r.id !== id));
+  };
+
+  // Synchronization between Central Student Directory and Due Reports
+  const syncDueReportWithStudents = () => {
+    let syncedCount = 0;
+    let newAddedKhmer = 0;
+    let newAddedEnglish = 0;
+    let newAddedToStudents = 0;
+
+    const updatedKhmer = [...khmerDueRecords];
+    const updatedEnglish = [...englishDueRecords];
+    const updatedStudentsList = [...students];
+
+    // 1. Sync from students into Due Reports
+    students.forEach(s => {
+      syncedCount++;
+      const isEnglish = 
+        s.curriculum === 'english' || 
+        s.classGrade.toLowerCase().includes('k1') || 
+        s.classGrade.toLowerCase().includes('k2') || 
+        s.classGrade.toLowerCase().includes('kindergarten') ||
+        s.classGrade.toLowerCase().includes('preschool') ||
+        s.classGrade.toLowerCase().includes('english');
+
+      const sCode = s.studentCode || s.roll || s.id;
+      const khmerGender = (s.gender === 'Female' || (s.gender as any) === 'F') ? 'ស្រី' : 'ប្រុស';
+
+      if (isEnglish) {
+        // Check if exists in English Due
+        const existingIdx = updatedEnglish.findIndex(e => 
+          e.studentCode === sCode || 
+          e.studentCode === s.studentCode || 
+          (s.roll && e.studentCode === s.roll) ||
+          e.nameKhmer.trim() === s.nameKhmer.trim()
+        );
+
+        if (existingIdx >= 0) {
+          // Sync Last Year Owed (pastYearDue)
+          let ePastTuition = updatedEnglish[existingIdx].pastYearDue?.tuition || 0;
+          let ePastAdmin = updatedEnglish[existingIdx].pastYearDue?.adminFee || 0;
+          if (s.pastYearDue !== undefined || s.pastYearTuition !== undefined) {
+            ePastTuition = s.pastYearTuition ?? (s.pastYearDue || 0);
+            ePastAdmin = s.pastYearAdmin ?? 0;
+          } else if (ePastTuition > 0 || ePastAdmin > 0) {
+            s.pastYearDue = ePastTuition + ePastAdmin;
+            s.pastYearTuition = ePastTuition;
+            s.pastYearAdmin = ePastAdmin;
+          }
+
+          updatedEnglish[existingIdx] = {
+            ...updatedEnglish[existingIdx],
+            nameKhmer: s.nameKhmer || updatedEnglish[existingIdx].nameKhmer,
+            nameEnglish: s.nameEnglish || updatedEnglish[existingIdx].nameEnglish,
+            gender: s.gender === 'Female' ? 'F' : 'M',
+            dob: s.birthday || updatedEnglish[existingIdx].dob,
+            branchId: s.branchId || updatedEnglish[existingIdx].branchId || 'fbis-02',
+            className: s.classGrade || updatedEnglish[existingIdx].className,
+            status: s.status === 'active' ? 'កំពុងសិក្សា' : updatedEnglish[existingIdx].status,
+            pastYearDue: { tuition: ePastTuition, adminFee: ePastAdmin }
+          };
+        } else {
+          // Add new English due record
+          newAddedEnglish++;
+          const tuition = s.tuitionFee || 640;
+          const disc = s.discountPercentage || 0;
+          const qTuition = Number(((tuition * (1 - disc / 100)) / 4).toFixed(2));
+          const qAdmin = 25;
+          const pTuition = s.pastYearTuition ?? (s.pastYearDue || 0);
+          const pAdmin = s.pastYearAdmin ?? 0;
+          const newRec: EnglishDueRecord = {
+            id: `edue-sync-${s.id}-${Date.now()}`,
+            no: updatedEnglish.length + 1,
+            studentCode: sCode,
+            nameKhmer: s.nameKhmer,
+            nameEnglish: s.nameEnglish,
+            className: s.classGrade || 'ថ្នាក់ K1',
+            gender: s.gender === 'Female' ? 'F' : 'M',
+            dob: s.birthday || '2020-01-01',
+            academicYear: s.academicYear || '2025-2026',
+            status: 'កំពុងសិក្សា',
+            fullTuition: tuition,
+            discountPercent: disc,
+            annualIncentive: 0,
+            incentive: 0,
+            amountPayableTuition: Number((tuition * (1 - disc / 100)).toFixed(2)),
+            amountPayableAdminFee: 100,
+            pastYearDue: { tuition: pTuition, adminFee: pAdmin },
+            beginningQuarterDue: {
+              q1: { tuition: 0, adminFee: 0 },
+              q2: { tuition: qTuition, adminFee: qAdmin },
+              q3: { tuition: qTuition, adminFee: qAdmin },
+              q4: { tuition: qTuition, adminFee: qAdmin },
+              newYearTotal: { tuition: Number((qTuition * 3).toFixed(2)), adminFee: qAdmin * 3 }
+            },
+            totalPaid: { tuition: 0, adminFee: 0 },
+            paymentCount: 1,
+            endingQuarterDue: {
+              q1: { tuition: 0, adminFee: 0 },
+              q2: { tuition: qTuition, adminFee: qAdmin },
+              q3: { tuition: qTuition, adminFee: qAdmin },
+              q4: { tuition: qTuition, adminFee: qAdmin }
+            },
+            branchId: s.branchId || 'fbis-02'
+          };
+          updatedEnglish.push(newRec);
+        }
+      } else {
+        // Khmer Program
+        const existingIdx = updatedKhmer.findIndex(k => 
+          k.studentCode === sCode || 
+          k.studentCode === s.studentCode || 
+          (s.roll && k.studentCode === s.roll) ||
+          k.nameKhmer.trim() === s.nameKhmer.trim()
+        );
+
+        if (existingIdx >= 0) {
+          // Sync Last Year Owed (pastYearDue)
+          let kPastDue = updatedKhmer[existingIdx].pastYearDue || 0;
+          if (s.pastYearDue !== undefined) {
+            kPastDue = s.pastYearDue;
+          } else if (kPastDue > 0) {
+            s.pastYearDue = kPastDue;
+          }
+
+          updatedKhmer[existingIdx] = {
+            ...updatedKhmer[existingIdx],
+            nameKhmer: s.nameKhmer || updatedKhmer[existingIdx].nameKhmer,
+            nameEnglish: s.nameEnglish || updatedKhmer[existingIdx].nameEnglish,
+            gender: khmerGender,
+            dob: s.birthday || updatedKhmer[existingIdx].dob,
+            branchId: s.branchId || updatedKhmer[existingIdx].branchId || 'fbis-02',
+            className: s.classGrade || updatedKhmer[existingIdx].className,
+            status: s.status === 'active' ? 'កំពុងសិក្សា' : updatedKhmer[existingIdx].status,
+            pastYearDue: kPastDue
+          };
+        } else {
+          // Add new Khmer due record
+          newAddedKhmer++;
+          const tuition = s.tuitionFee || 981;
+          const disc = s.discountPercentage || 0;
+          const semTuition = Number(((tuition * (1 - disc / 100)) / 4).toFixed(2));
+          const pastDue = s.pastYearDue || 0;
+          const newRec: KhmerDueRecord = {
+            id: `kdue-sync-${s.id}-${Date.now()}`,
+            no: updatedKhmer.length + 1,
+            studentCode: sCode,
+            nameKhmer: s.nameKhmer,
+            nameEnglish: s.nameEnglish,
+            className: s.classGrade || 'ថ្នាក់ទី ៧',
+            gender: khmerGender,
+            dob: s.birthday || '2013-01-01',
+            academicYear: s.academicYear || '2025-2026',
+            status: 'កំពុងសិក្សា',
+            fullTuition: tuition,
+            discountPercent: disc,
+            discountAmount: 0,
+            incentive: 0,
+            amountPayable: Number((tuition * (1 - disc / 100)).toFixed(2)),
+            pastYearDue: pastDue,
+            newYearSem1: 0,
+            newYearSem2: semTuition,
+            beginningBalanceDue: pastDue + semTuition,
+            endingDue: { semester1: 0, semester2: semTuition, pastYear: pastDue, total: pastDue + semTuition },
+            branchId: s.branchId || 'fbis-02'
+          };
+          updatedKhmer.push(newRec);
+        }
+      }
+    });
+
+    // 2. Also register missing students from Due Records into Central Students Directory
+    updatedKhmer.forEach(k => {
+      const found = updatedStudentsList.some(s => 
+        s.studentCode === k.studentCode || 
+        s.roll === k.studentCode || 
+        s.nameKhmer.trim() === k.nameKhmer.trim()
+      );
+      if (!found) {
+        newAddedToStudents++;
+        updatedStudentsList.push({
+          id: `std-from-kdue-${k.studentCode}-${Date.now()}`,
+          studentCode: k.studentCode,
+          nameKhmer: k.nameKhmer,
+          nameEnglish: k.nameEnglish,
+          username: k.studentCode.toLowerCase(),
+          roll: k.studentCode.replace(/\D/g, '') || k.studentCode,
+          classGrade: k.className || 'ថ្នាក់ទី ៧',
+          gender: (k.gender === 'ស្រី' || (k.gender as any) === 'F') ? 'Female' : 'Male',
+          birthday: k.dob || '2013-01-01',
+          phone: '077 473 545',
+          guardianPhone: '077 473 545',
+          address: 'ខេត្តសៀមរាប',
+          parentName: 'អាណាព្យាបាលសិស្ស',
+          avatar: `https://images.unsplash.com/photo-1544717305-2782549b5136?w=150&auto=format&fit=crop&q=80`,
+          status: 'active',
+          registrationDate: '2025-10-01',
+          enrollmentDate: '2025-10-01',
+          branchId: k.branchId || 'fbis-02',
+          curriculum: 'khmer',
+          academicYear: k.academicYear || '2025-2026',
+          tuitionFee: k.fullTuition || 981,
+          discountPercentage: k.discountPercent || 0,
+          pastYearDue: k.pastYearDue || 0,
+          pastYearTuition: k.pastYearDue || 0,
+          pastYearAdmin: 0
+        });
+      }
+    });
+
+    updatedEnglish.forEach(e => {
+      const found = updatedStudentsList.some(s => 
+        s.studentCode === e.studentCode || 
+        s.roll === e.studentCode || 
+        s.nameKhmer.trim() === e.nameKhmer.trim()
+      );
+      if (!found) {
+        newAddedToStudents++;
+        updatedStudentsList.push({
+          id: `std-from-edue-${e.studentCode}-${Date.now()}`,
+          studentCode: e.studentCode,
+          nameKhmer: e.nameKhmer,
+          nameEnglish: e.nameEnglish,
+          username: e.studentCode.toLowerCase(),
+          roll: e.studentCode.replace(/\D/g, '') || e.studentCode,
+          classGrade: e.className || 'ថ្នាក់ K1',
+          gender: (e.gender === 'F' || e.gender === 'ស្រី' || (e.gender as any) === 'ស') ? 'Female' : 'Male',
+          birthday: e.dob || '2020-01-01',
+          phone: '077 473 545',
+          guardianPhone: '077 473 545',
+          address: 'ខេត្តសៀមរាប',
+          parentName: 'អាណាព្យាបាលសិស្ស',
+          avatar: `https://images.unsplash.com/photo-1544717305-2782549b5136?w=150&auto=format&fit=crop&q=80`,
+          status: 'active',
+          registrationDate: '2025-10-01',
+          enrollmentDate: '2025-10-01',
+          branchId: e.branchId || 'fbis-02',
+          curriculum: 'english',
+          academicYear: e.academicYear || '2025-2026',
+          tuitionFee: e.fullTuition || 640,
+          discountPercentage: e.discountPercent || 0,
+          pastYearDue: (e.pastYearDue?.tuition || 0) + (e.pastYearDue?.adminFee || 0),
+          pastYearTuition: e.pastYearDue?.tuition || 0,
+          pastYearAdmin: e.pastYearDue?.adminFee || 0
+        });
+      }
+    });
+
+    setKhmerDueRecords(updatedKhmer);
+    setEnglishDueRecords(updatedEnglish);
+    setStudents(updatedStudentsList);
+
+    return {
+      syncedCount,
+      newAddedKhmer,
+      newAddedEnglish,
+      newAddedToStudents
+    };
+  };
+
+  const updateDueRecordBranch = (recordId: string, program: 'khmer' | 'english', targetBranchId: string): boolean => {
+    if (program === 'khmer') {
+      const rec = khmerDueRecords.find(r => r.id === recordId);
+      if (!rec) return false;
+      setKhmerDueRecords(prev => prev.map(r => r.id === recordId ? { ...r, branchId: targetBranchId } : r));
+      setStudents(prev => prev.map(s => (s.studentCode === rec.studentCode || s.roll === rec.studentCode) ? { ...s, branchId: targetBranchId } : s));
+      return true;
+    } else {
+      const rec = englishDueRecords.find(r => r.id === recordId);
+      if (!rec) return false;
+      setEnglishDueRecords(prev => prev.map(r => r.id === recordId ? { ...r, branchId: targetBranchId } : r));
+      setStudents(prev => prev.map(s => (s.studentCode === rec.studentCode || s.roll === rec.studentCode) ? { ...s, branchId: targetBranchId } : s));
+      return true;
+    }
   };
 
   // Settings
@@ -1484,6 +1995,8 @@ export const SchoolProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         addEnglishDueRecord,
         updateEnglishDueRecord,
         deleteEnglishDueRecord,
+        syncDueReportWithStudents,
+        updateDueRecordBranch,
         settings,
         updateSettings,
         updateSemesterConfig,

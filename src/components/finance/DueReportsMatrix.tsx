@@ -31,7 +31,8 @@ import {
   Save,
   ArrowRight,
   Sparkles,
-  Table
+  Table,
+  Database
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { getSemesterConfig, formatKhmerDate } from '../../utils/semesterUtils';
@@ -99,10 +100,14 @@ export const DueReportsMatrix: React.FC = () => {
     setCurrentBranchId, 
     branchKhmerDueRecords, 
     branchEnglishDueRecords,
+    khmerDueRecords,
+    englishDueRecords,
     students,
     setSelectedStudentId,
     setActiveTab,
-    settings
+    settings,
+    syncDueReportWithStudents,
+    updateDueRecordBranch
   } = useSchool();
 
   const [activeProgram, setActiveProgram] = useState<'khmer' | 'english'>('khmer');
@@ -111,8 +116,18 @@ export const DueReportsMatrix: React.FC = () => {
   const [cutoffDateKhmer, setCutoffDateKhmer] = useState('៣១-ឧសភា-២០២៦');
   const [selectedClassKhmer, setSelectedClassKhmer] = useState('all');
   const [selectedClassEnglish, setSelectedClassEnglish] = useState('all');
+  const [selectedBranchFilter, setSelectedBranchFilter] = useState<string>('all');
+  const [groupByBranch, setGroupByBranch] = useState<boolean>(true);
   const [groupByClass, setGroupByClass] = useState<boolean>(true);
   const [collapsedClasses, setCollapsedClasses] = useState<Record<string, boolean>>({});
+  const [collapsedBranches, setCollapsedBranches] = useState<Record<string, boolean>>({});
+  const [isSyncing, setIsSyncing] = useState<boolean>(false);
+  const [syncSummaryModal, setSyncSummaryModal] = useState<{
+    syncedCount: number;
+    newAddedKhmer: number;
+    newAddedEnglish: number;
+    newAddedToStudents: number;
+  } | null>(null);
 
   // User-defined Excel formulas for Khmer and English programs
   const [khmerFormulas, setKhmerFormulas] = useState<Record<string, string>>(STANDARD_FORMULA_PRESETS.khmer);
@@ -266,24 +281,39 @@ export const DueReportsMatrix: React.FC = () => {
     return 'ថ្នាក់ K1';
   };
 
+  // Source records based on selectedBranchFilter ('all' or specific campus)
+  const sourceKhmerRecords = useMemo(() => {
+    if (selectedBranchFilter === 'all') {
+      return khmerDueRecords;
+    }
+    return khmerDueRecords.filter(r => (r.branchId || 'fbis-02') === selectedBranchFilter);
+  }, [khmerDueRecords, selectedBranchFilter]);
+
+  const sourceEnglishRecords = useMemo(() => {
+    if (selectedBranchFilter === 'all') {
+      return englishDueRecords;
+    }
+    return englishDueRecords.filter(r => (r.branchId || 'fbis-02') === selectedBranchFilter);
+  }, [englishDueRecords, selectedBranchFilter]);
+
   // Available classes in Khmer & English records
   const availableKhmerClasses = useMemo(() => {
     const set = new Set<string>();
-    branchKhmerDueRecords.forEach(r => set.add(getKhmerRecordClass(r)));
+    sourceKhmerRecords.forEach(r => set.add(getKhmerRecordClass(r)));
     return Array.from(set).sort();
-  }, [branchKhmerDueRecords, students]);
+  }, [sourceKhmerRecords, students]);
 
   const availableEnglishClasses = useMemo(() => {
     const set = new Set<string>();
-    branchEnglishDueRecords.forEach(r => set.add(getEnglishRecordClass(r)));
+    sourceEnglishRecords.forEach(r => set.add(getEnglishRecordClass(r)));
     return Array.from(set).sort();
-  }, [branchEnglishDueRecords, students]);
+  }, [sourceEnglishRecords, students]);
 
-  // Collapse/Expand handlers
-  const toggleClassCollapse = (clsName: string) => {
+  // Collapse/Expand handlers for Classes
+  const toggleClassCollapse = (clsKey: string) => {
     setCollapsedClasses(prev => ({
       ...prev,
-      [clsName]: !prev[clsName]
+      [clsKey]: !prev[clsKey]
     }));
   };
 
@@ -299,12 +329,49 @@ export const DueReportsMatrix: React.FC = () => {
     setCollapsedClasses(next);
   };
 
+  // Collapse/Expand handlers for Branches
+  const toggleBranchCollapse = (bId: string) => {
+    setCollapsedBranches(prev => ({
+      ...prev,
+      [bId]: !prev[bId]
+    }));
+  };
+
+  const expandAllBranches = () => setCollapsedBranches({});
+  const collapseAllBranches = () => {
+    const next: Record<string, boolean> = {};
+    branches.forEach(b => { next[b.id] = true; });
+    setCollapsedBranches(next);
+  };
+
+  // Student Branch Reassignment handler
+  const handleBranchChange = (recordId: string, targetBranchId: string) => {
+    const success = updateDueRecordBranch(recordId, activeProgram, targetBranchId);
+    if (success) {
+      const bObj = branches.find(b => b.id === targetBranchId);
+      setFormulaSuccessToast(`បានផ្លាស់ប្ដូរសាខាសិស្សទៅកាន់ [${bObj ? `${bObj.code} - ${bObj.nameKhmer}` : targetBranchId}] ដោយជោគជ័យ!`);
+      setTimeout(() => setFormulaSuccessToast(null), 3500);
+    }
+  };
+
+  // Bidirectional Synchronization with Central Student Directory
+  const handleSyncWithStudents = () => {
+    setIsSyncing(true);
+    setTimeout(() => {
+      const res = syncDueReportWithStudents();
+      setSyncSummaryModal(res);
+      setIsSyncing(false);
+      setFormulaSuccessToast(`ធ្វើសមកាលកម្មរួចរាល់៖ សិស្ស ${res.syncedCount} នាក់ត្រូវបានធ្វើបច្ចុប្បន្នភាព!`);
+      setTimeout(() => setFormulaSuccessToast(null), 4000);
+    }, 250);
+  };
+
   // Semester Date Configuration for the selected year
   const semConfig = getSemesterConfig(settings, selectedYear);
 
   // Filtered lists
   const filteredKhmer = useMemo(() => {
-    return branchKhmerDueRecords.filter(r => {
+    return sourceKhmerRecords.filter(r => {
       const matchSearch = !search.trim() ||
         r.studentCode.toLowerCase().includes(search.toLowerCase()) ||
         r.nameKhmer.toLowerCase().includes(search.toLowerCase()) ||
@@ -315,10 +382,10 @@ export const DueReportsMatrix: React.FC = () => {
       const matchClass = selectedClassKhmer === 'all' || recordClass === selectedClassKhmer;
       return matchSearch && matchYear && matchClass;
     });
-  }, [branchKhmerDueRecords, search, selectedYear, selectedClassKhmer, students]);
+  }, [sourceKhmerRecords, search, selectedYear, selectedClassKhmer, students]);
 
   const filteredEnglish = useMemo(() => {
-    return branchEnglishDueRecords.filter(r => {
+    return sourceEnglishRecords.filter(r => {
       const matchSearch = !search.trim() ||
         r.studentCode.toLowerCase().includes(search.toLowerCase()) ||
         r.nameKhmer.toLowerCase().includes(search.toLowerCase()) ||
@@ -328,7 +395,7 @@ export const DueReportsMatrix: React.FC = () => {
       const matchClass = selectedClassEnglish === 'all' || recordClass === selectedClassEnglish;
       return matchSearch && matchYear && matchClass;
     });
-  }, [branchEnglishDueRecords, search, selectedYear, selectedClassEnglish, students]);
+  }, [sourceEnglishRecords, search, selectedYear, selectedClassEnglish, students]);
 
   // Dynamically calculate every Khmer record following school billing rules & custom Excel formulas
   const calculatedKhmerList = useMemo<CalculatedKhmerRecord[]>(() => {
@@ -632,6 +699,336 @@ export const DueReportsMatrix: React.FC = () => {
     });
   }, [calculatedEnglishList, students]);
 
+  // Grouped Khmer Records by Branch
+  interface KhmerClassSubgroup {
+    className: string;
+    records: CalculatedKhmerRecord[];
+    subtotals: typeof khmerTotals;
+    hasDebtCount: number;
+  }
+
+  interface KhmerBranchGroup {
+    branchId: string;
+    branch: (typeof branches)[0] | undefined;
+    records: CalculatedKhmerRecord[];
+    subtotals: typeof khmerTotals;
+    classGroups: KhmerClassSubgroup[];
+    hasDebtCount: number;
+  }
+
+  const groupedKhmerByBranch = useMemo<KhmerBranchGroup[]>(() => {
+    const branchMap = new Map<string, CalculatedKhmerRecord[]>();
+    calculatedKhmerList.forEach(r => {
+      const bId = r.branchId || 'fbis-02';
+      if (!branchMap.has(bId)) {
+        branchMap.set(bId, []);
+      }
+      branchMap.get(bId)!.push(r);
+    });
+
+    return Array.from(branchMap.entries()).map(([branchId, records]) => {
+      const branch = branches.find(b => b.id === branchId);
+
+      const subtotals = records.reduce((acc, r) => {
+        acc.fullTuition += r.fullTuition || 0;
+        acc.amountPayable += r.calcAmountPayable;
+        acc.pastYearDue += r.calcPastYearDue;
+        acc.newYearSem1 += r.calcNewYearSem1;
+        acc.newYearSem2 += r.calcNewYearSem2;
+        acc.beginningBalanceDue += r.calcBeginningBalanceDue;
+        acc.installment1 += r.calcPaid1;
+        acc.installment2 += r.calcPaid2;
+        acc.installment3 += r.calcPaid3;
+        acc.totalPaid += r.calcTotalPaid;
+        acc.endingTotal += r.calcEndingTotal;
+        acc.endingPastYear += r.calcEndingPastYear;
+        acc.endingSem1 += r.calcEndingSem1;
+        acc.endingSem2 += r.calcEndingSem2;
+        return acc;
+      }, {
+        fullTuition: 0,
+        amountPayable: 0,
+        pastYearDue: 0,
+        newYearSem1: 0,
+        newYearSem2: 0,
+        beginningBalanceDue: 0,
+        installment1: 0,
+        installment2: 0,
+        installment3: 0,
+        totalPaid: 0,
+        endingTotal: 0,
+        endingPastYear: 0,
+        endingSem1: 0,
+        endingSem2: 0
+      });
+
+      const classMap = new Map<string, CalculatedKhmerRecord[]>();
+      records.forEach(r => {
+        const cls = getKhmerRecordClass(r);
+        if (!classMap.has(cls)) {
+          classMap.set(cls, []);
+        }
+        classMap.get(cls)!.push(r);
+      });
+
+      const classGroups: KhmerClassSubgroup[] = Array.from(classMap.entries()).map(([className, cRecords]) => {
+        const cSubtotals = cRecords.reduce((acc, r) => {
+          acc.fullTuition += r.fullTuition || 0;
+          acc.amountPayable += r.calcAmountPayable;
+          acc.pastYearDue += r.calcPastYearDue;
+          acc.newYearSem1 += r.calcNewYearSem1;
+          acc.newYearSem2 += r.calcNewYearSem2;
+          acc.beginningBalanceDue += r.calcBeginningBalanceDue;
+          acc.installment1 += r.calcPaid1;
+          acc.installment2 += r.calcPaid2;
+          acc.installment3 += r.calcPaid3;
+          acc.totalPaid += r.calcTotalPaid;
+          acc.endingTotal += r.calcEndingTotal;
+          acc.endingPastYear += r.calcEndingPastYear;
+          acc.endingSem1 += r.calcEndingSem1;
+          acc.endingSem2 += r.calcEndingSem2;
+          return acc;
+        }, {
+          fullTuition: 0,
+          amountPayable: 0,
+          pastYearDue: 0,
+          newYearSem1: 0,
+          newYearSem2: 0,
+          beginningBalanceDue: 0,
+          installment1: 0,
+          installment2: 0,
+          installment3: 0,
+          totalPaid: 0,
+          endingTotal: 0,
+          endingPastYear: 0,
+          endingSem1: 0,
+          endingSem2: 0
+        });
+
+        return {
+          className,
+          records: cRecords,
+          subtotals: cSubtotals,
+          hasDebtCount: cRecords.filter(r => r.hasEndingDebt).length
+        };
+      });
+
+      return {
+        branchId,
+        branch,
+        records,
+        subtotals,
+        classGroups,
+        hasDebtCount: records.filter(r => r.hasEndingDebt).length
+      };
+    });
+  }, [calculatedKhmerList, branches, students]);
+
+  // Grouped English Records by Branch
+  interface EnglishClassSubgroup {
+    className: string;
+    records: CalculatedEnglishRecord[];
+    subtotals: typeof englishTotals;
+    hasDebtCount: number;
+  }
+
+  interface EnglishBranchGroup {
+    branchId: string;
+    branch: (typeof branches)[0] | undefined;
+    records: CalculatedEnglishRecord[];
+    subtotals: typeof englishTotals;
+    classGroups: EnglishClassSubgroup[];
+    hasDebtCount: number;
+  }
+
+  const groupedEnglishByBranch = useMemo<EnglishBranchGroup[]>(() => {
+    const branchMap = new Map<string, CalculatedEnglishRecord[]>();
+    calculatedEnglishList.forEach(r => {
+      const bId = r.branchId || 'fbis-02';
+      if (!branchMap.has(bId)) {
+        branchMap.set(bId, []);
+      }
+      branchMap.get(bId)!.push(r);
+    });
+
+    return Array.from(branchMap.entries()).map(([branchId, records]) => {
+      const branch = branches.find(b => b.id === branchId);
+
+      const subtotals = records.reduce((acc, r) => {
+        acc.fullTuition += r.fullTuition || 0;
+        acc.annualIncentive += r.annualIncentive || 0;
+        acc.incentive += r.incentive || 0;
+        acc.amountPayableTuition += r.calcAmountPayableTuition;
+        acc.amountPayableAdminFee += r.calcAmountPayableAdminFee;
+        acc.pastYearTuition += r.calcPastYearTuition;
+        acc.pastYearAdmin += r.calcPastYearAdmin;
+        acc.begQ1Tuition += r.calcBegQ1Tuition;
+        acc.begQ1Admin += r.calcBegQ1Admin;
+        acc.begQ2Tuition += r.calcBegQ2Tuition;
+        acc.begQ2Admin += r.calcBegQ2Admin;
+        acc.begQ3Tuition += r.calcBegQ3Tuition;
+        acc.begQ3Admin += r.calcBegQ3Admin;
+        acc.begQ4Tuition += r.calcBegQ4Tuition;
+        acc.begQ4Admin += r.calcBegQ4Admin;
+        acc.begNewYearTuition += r.calcBegTotalTuition;
+        acc.begNewYearAdmin += r.calcBegTotalAdmin;
+        acc.inst1Amount += r.calcInst1Amount;
+        acc.inst2Amount += r.calcInst2Amount;
+        acc.totPaidTuition += r.calcTotalPaidTuition;
+        acc.totPaidAdmin += r.calcTotalPaidAdmin;
+        acc.endTotalTuition += r.calcEndTotalTuition;
+        acc.endTotalAdmin += r.calcEndTotalAdmin;
+        acc.paymentCount += r.calcPaymentCount;
+        acc.endPastYearTuition += r.calcEndPastYearTuition;
+        acc.endPastYearAdmin += r.calcEndPastYearAdmin;
+        acc.endQ1Tuition += r.calcEndQ1Tuition;
+        acc.endQ1Admin += r.calcEndQ1Admin;
+        acc.endQ2Tuition += r.calcEndQ2Tuition;
+        acc.endQ2Admin += r.calcEndQ2Admin;
+        acc.endQ3Tuition += r.calcEndQ3Tuition;
+        acc.endQ3Admin += r.calcEndQ3Admin;
+        acc.endQ4Tuition += r.calcEndQ4Tuition;
+        acc.endQ4Admin += r.calcEndQ4Admin;
+        return acc;
+      }, {
+        fullTuition: 0,
+        annualIncentive: 0,
+        incentive: 0,
+        amountPayableTuition: 0,
+        amountPayableAdminFee: 0,
+        pastYearTuition: 0,
+        pastYearAdmin: 0,
+        begQ1Tuition: 0,
+        begQ1Admin: 0,
+        begQ2Tuition: 0,
+        begQ2Admin: 0,
+        begQ3Tuition: 0,
+        begQ3Admin: 0,
+        begQ4Tuition: 0,
+        begQ4Admin: 0,
+        begNewYearTuition: 0,
+        begNewYearAdmin: 0,
+        inst1Amount: 0,
+        inst2Amount: 0,
+        totPaidTuition: 0,
+        totPaidAdmin: 0,
+        endTotalTuition: 0,
+        endTotalAdmin: 0,
+        paymentCount: 0,
+        endPastYearTuition: 0,
+        endPastYearAdmin: 0,
+        endQ1Tuition: 0,
+        endQ1Admin: 0,
+        endQ2Tuition: 0,
+        endQ2Admin: 0,
+        endQ3Tuition: 0,
+        endQ3Admin: 0,
+        endQ4Tuition: 0,
+        endQ4Admin: 0
+      });
+
+      const classMap = new Map<string, CalculatedEnglishRecord[]>();
+      records.forEach(r => {
+        const cls = getEnglishRecordClass(r);
+        if (!classMap.has(cls)) {
+          classMap.set(cls, []);
+        }
+        classMap.get(cls)!.push(r);
+      });
+
+      const classGroups: EnglishClassSubgroup[] = Array.from(classMap.entries()).map(([className, cRecords]) => {
+        const cSubtotals = cRecords.reduce((acc, r) => {
+          acc.fullTuition += r.fullTuition || 0;
+          acc.annualIncentive += r.annualIncentive || 0;
+          acc.incentive += r.incentive || 0;
+          acc.amountPayableTuition += r.calcAmountPayableTuition;
+          acc.amountPayableAdminFee += r.calcAmountPayableAdminFee;
+          acc.pastYearTuition += r.calcPastYearTuition;
+          acc.pastYearAdmin += r.calcPastYearAdmin;
+          acc.begQ1Tuition += r.calcBegQ1Tuition;
+          acc.begQ1Admin += r.calcBegQ1Admin;
+          acc.begQ2Tuition += r.calcBegQ2Tuition;
+          acc.begQ2Admin += r.calcBegQ2Admin;
+          acc.begQ3Tuition += r.calcBegQ3Tuition;
+          acc.begQ3Admin += r.calcBegQ3Admin;
+          acc.begQ4Tuition += r.calcBegQ4Tuition;
+          acc.begQ4Admin += r.calcBegQ4Admin;
+          acc.begNewYearTuition += r.calcBegTotalTuition;
+          acc.begNewYearAdmin += r.calcBegTotalAdmin;
+          acc.inst1Amount += r.calcInst1Amount;
+          acc.inst2Amount += r.calcInst2Amount;
+          acc.totPaidTuition += r.calcTotalPaidTuition;
+          acc.totPaidAdmin += r.calcTotalPaidAdmin;
+          acc.endTotalTuition += r.calcEndTotalTuition;
+          acc.endTotalAdmin += r.calcEndTotalAdmin;
+          acc.paymentCount += r.calcPaymentCount;
+          acc.endPastYearTuition += r.calcEndPastYearTuition;
+          acc.endPastYearAdmin += r.calcEndPastYearAdmin;
+          acc.endQ1Tuition += r.calcEndQ1Tuition;
+          acc.endQ1Admin += r.calcEndQ1Admin;
+          acc.endQ2Tuition += r.calcEndQ2Tuition;
+          acc.endQ2Admin += r.calcEndQ2Admin;
+          acc.endQ3Tuition += r.calcEndQ3Tuition;
+          acc.endQ3Admin += r.calcEndQ3Admin;
+          acc.endQ4Tuition += r.calcEndQ4Tuition;
+          acc.endQ4Admin += r.calcEndQ4Admin;
+          return acc;
+        }, {
+          fullTuition: 0,
+          annualIncentive: 0,
+          incentive: 0,
+          amountPayableTuition: 0,
+          amountPayableAdminFee: 0,
+          pastYearTuition: 0,
+          pastYearAdmin: 0,
+          begQ1Tuition: 0,
+          begQ1Admin: 0,
+          begQ2Tuition: 0,
+          begQ2Admin: 0,
+          begQ3Tuition: 0,
+          begQ3Admin: 0,
+          begQ4Tuition: 0,
+          begQ4Admin: 0,
+          begNewYearTuition: 0,
+          begNewYearAdmin: 0,
+          inst1Amount: 0,
+          inst2Amount: 0,
+          totPaidTuition: 0,
+          totPaidAdmin: 0,
+          endTotalTuition: 0,
+          endTotalAdmin: 0,
+          paymentCount: 0,
+          endPastYearTuition: 0,
+          endPastYearAdmin: 0,
+          endQ1Tuition: 0,
+          endQ1Admin: 0,
+          endQ2Tuition: 0,
+          endQ2Admin: 0,
+          endQ3Tuition: 0,
+          endQ3Admin: 0,
+          endQ4Tuition: 0,
+          endQ4Admin: 0
+        });
+
+        return {
+          className,
+          records: cRecords,
+          subtotals: cSubtotals,
+          hasDebtCount: cRecords.filter(r => r.hasEndingDebt).length
+        };
+      });
+
+      return {
+        branchId,
+        branch,
+        records,
+        subtotals,
+        classGroups,
+        hasDebtCount: records.filter(r => r.hasEndingDebt).length
+      };
+    });
+  }, [calculatedEnglishList, branches, students]);
+
   // Export to Excel for Khmer Program matching exact A to AE columns from Master Prompt
   const handleExportKhmerExcel = () => {
     const data = calculatedKhmerList.map(r => {
@@ -753,6 +1150,1010 @@ export const DueReportsMatrix: React.FC = () => {
     window.print();
   };
 
+  // Helper to render Khmer Student Row with interactive branch reassignment & formula cell clicking
+  const renderKhmerRow = (r: CalculatedKhmerRecord, idx: number) => {
+    return (
+      <tr 
+        key={r.id || idx} 
+        className={`hover:bg-amber-50/50 transition-colors ${
+          r.hasEndingDebt ? 'bg-rose-50/20' : ''
+        }`}
+      >
+        <td className="py-1 px-1 text-center font-mono border-r border-slate-300">{r.no || idx + 1}</td>
+        <td className="py-1 px-1.5 font-mono font-medium text-slate-900 border-r border-slate-300">
+          <div className="flex flex-col">
+            <span>{r.studentCode}</span>
+            <div className="no-print mt-0.5 flex items-center gap-1">
+              <select
+                value={r.branchId || 'fbis-02'}
+                onChange={(e) => handleBranchChange(r.id, e.target.value)}
+                className="text-[8.5px] font-mono font-bold py-0.2 px-1 bg-slate-100 hover:bg-white text-slate-700 border border-slate-300 rounded cursor-pointer"
+                title="ផ្លាស់ប្ដូរសាខារបស់សិស្សនេះ (Change Branch)"
+              >
+                {branches.map(b => (
+                  <option key={b.id} value={b.id}>{b.code}</option>
+                ))}
+              </select>
+            </div>
+          </div>
+        </td>
+        <td className="py-1 px-2 font-khmer font-bold text-slate-900 border-r border-slate-300">
+          {r.nameKhmer}
+        </td>
+        <td className="py-1 px-2 font-sans text-slate-700 border-r border-slate-300">
+          {r.nameEnglish}
+        </td>
+        <td className="py-1 px-1 text-center font-khmer border-r border-slate-300">{r.gender}</td>
+        <td className="py-1 px-1.5 font-mono text-[9px] text-slate-600 border-r border-slate-300">{r.dob}</td>
+        <td className="py-1 px-1 font-mono text-[9px] text-center border-r border-slate-300">{r.academicYear}</td>
+        <td className="py-1 px-1.5 font-khmer text-center text-slate-600 border-r border-slate-300">{r.status}</td>
+        <td className="py-1 px-1.5 text-right font-mono font-medium border-r border-slate-300">
+          $ {(r.fullTuition ?? 0).toFixed(2)}
+        </td>
+
+        {/* បញ្ចុះតម្លៃ % & លើកទឹកចិត្ត */}
+        <td className="py-1 px-1 text-center font-mono text-slate-700 border-r border-slate-300">
+          {r.discountPercent ? `${r.discountPercent}%` : '-'}
+        </td>
+        <td className="py-1 px-1 text-right font-mono text-slate-700 border-r border-slate-300">
+          {formatCurrency(r.incentive)}
+        </td>
+
+        {/* ទឹកប្រាក់ត្រូវបង់ (Col M) */}
+        <td 
+          onClick={() => selectFormulaColumn('M', 'ទឹកប្រាក់ត្រូវបង់ (Net Tuition Payable)', r.studentCode, r.nameKhmer, r.no, r.calcAmountPayable)}
+          className={`py-1 px-2 text-right font-mono font-bold text-slate-900 border-r border-slate-300 cursor-pointer transition-colors ${
+            selectedColumn === 'M' && selectedCellInfo.studentCode === r.studentCode 
+              ? 'bg-amber-200 ring-2 ring-amber-500' 
+              : 'bg-amber-50/60 hover:bg-amber-100'
+          }`}
+          title="ចុចដើម្បីមើល ឬកែសម្រួលរូបមន្ត [M]"
+        >
+          {formatCurrency(r.calcAmountPayable)}
+        </td>
+
+        {/* ទឹកប្រាក់ជំពាក់ឆ្នាំសិក្សាចាស់ */}
+        <td className="py-1 px-1 text-right font-mono text-slate-500 border-r border-slate-300">
+          {formatCurrency(r.calcPastYearDue)}
+        </td>
+
+        {/* ទឹកប្រាក់ជំពាក់ឆ្នាំថ្មី (ឆមាសទី១ & ឆមាសទី២) */}
+        <td className="py-1 px-1 text-right font-mono text-slate-700 border-r border-slate-300">
+          {formatCurrency(r.calcNewYearSem1)}
+        </td>
+        <td className="py-1 px-1 text-right font-mono text-slate-700 border-r border-slate-300">
+          {formatCurrency(r.calcNewYearSem2)}
+        </td>
+
+        {/* ទឹកប្រាក់ជំពាក់ដើមត្រា (Col Q) */}
+        <td 
+          onClick={() => selectFormulaColumn('Q', 'ទឹកប្រាក់ជំពាក់ដើមត្រា (Total Opening Debt)', r.studentCode, r.nameKhmer, r.no, r.calcBeginningBalanceDue)}
+          className={`py-1 px-1.5 text-right font-mono font-semibold text-slate-900 border-r border-slate-300 cursor-pointer transition-colors ${
+            selectedColumn === 'Q' && selectedCellInfo.studentCode === r.studentCode 
+              ? 'bg-amber-200 ring-2 ring-amber-500' 
+              : 'hover:bg-amber-100'
+          }`}
+          title="ចុចដើម្បីមើល ឬកែសម្រួលរូបមន្ត [Q]"
+        >
+          {formatCurrency(r.calcBeginningBalanceDue)}
+        </td>
+
+        {/* លើកទី១ */}
+        <td className="py-1 px-1 font-mono text-[9px] text-slate-600 border-r border-slate-300">
+          {r.installment1?.date || '-'}
+        </td>
+        <td className="py-1 px-1.5 font-mono text-[9px] text-blue-700 border-r border-slate-300">
+          {r.installment1?.invoiceNo || '-'}
+        </td>
+        <td className="py-1 px-1 text-right font-mono font-medium text-emerald-700 border-r border-slate-300">
+          {formatCurrency(r.calcPaid1)}
+        </td>
+
+        {/* លើកទី២ */}
+        <td className="py-1 px-1 font-mono text-[9px] text-slate-600 border-r border-slate-300">
+          {r.installment2?.date || '-'}
+        </td>
+        <td className="py-1 px-1.5 font-mono text-[9px] text-blue-700 border-r border-slate-300">
+          {r.installment2?.invoiceNo || '-'}
+        </td>
+        <td className="py-1 px-1 text-right font-mono font-medium text-emerald-700 border-r border-slate-300">
+          {formatCurrency(r.calcPaid2)}
+        </td>
+
+        {/* លើកទី៣ */}
+        <td className="py-1 px-1 font-mono text-[9px] text-slate-600 border-r border-slate-300">
+          {r.installment3?.date || '-'}
+        </td>
+        <td className="py-1 px-1.5 font-mono text-[9px] text-blue-700 border-r border-slate-300">
+          {r.installment3?.invoiceNo || '-'}
+        </td>
+        <td className="py-1 px-1 text-right font-mono font-medium text-emerald-700 border-r border-slate-300">
+          {formatCurrency(r.calcPaid3)}
+        </td>
+
+        {/* ទឹកប្រាក់បានបង់សរុប (Col AA) */}
+        <td 
+          onClick={() => selectFormulaColumn('AA', 'ទឹកប្រាក់បានបង់សរុប (Total Payments Received)', r.studentCode, r.nameKhmer, r.no, r.calcTotalPaid)}
+          className={`py-1 px-2 text-right font-mono font-bold text-emerald-800 border-r border-slate-300 cursor-pointer transition-colors ${
+            selectedColumn === 'AA' && selectedCellInfo.studentCode === r.studentCode 
+              ? 'bg-emerald-200 ring-2 ring-emerald-500' 
+              : 'bg-emerald-50/50 hover:bg-emerald-100'
+          }`}
+          title="ចុចដើម្បីមើល ឬកែសម្រួលរូបមន្ត [AA]"
+        >
+          {formatCurrency(r.calcTotalPaid)}
+        </td>
+
+        {/* ទឹកប្រាក់ជំពាក់ចុងត្រា (Col AB) */}
+        <td 
+          onClick={() => selectFormulaColumn('AB', 'ទឹកប្រាក់ជំពាក់ចុងត្រា (Closing Outstanding Debt)', r.studentCode, r.nameKhmer, r.no, r.calcEndingTotal)}
+          className={`py-1 px-1.5 text-right font-mono font-bold border-r border-slate-300 cursor-pointer transition-colors ${
+            selectedColumn === 'AB' && selectedCellInfo.studentCode === r.studentCode 
+              ? 'bg-rose-200 ring-2 ring-rose-500' 
+              : r.hasEndingDebt ? 'text-red-700 bg-rose-50 hover:bg-rose-100' : 'text-slate-400 hover:bg-slate-100'
+          }`}
+          title="ចុចដើម្បីមើល ឬកែសម្រួលរូបមន្ត [AB]"
+        >
+          {formatCurrency(r.calcEndingTotal)}
+        </td>
+
+        {/* ទឹកប្រាក់ជំពាក់ចុងត្រាឆ្នាំចាស់ (Col AC) */}
+        <td 
+          onClick={() => selectFormulaColumn('AC', 'ជំពាក់ចុងត្រាឆ្នាំចាស់ (Remaining Past Year Debt)', r.studentCode, r.nameKhmer, r.no, r.calcEndingPastYear)}
+          className={`py-1 px-1 text-right font-mono text-slate-700 border-r border-slate-300 cursor-pointer transition-colors ${
+            selectedColumn === 'AC' && selectedCellInfo.studentCode === r.studentCode ? 'bg-amber-200 ring-2 ring-amber-500' : 'hover:bg-amber-50'
+          }`}
+          title="ចុចដើម្បីមើល ឬកែសម្រួលរូបមន្ត [AC]"
+        >
+          {formatCurrency(r.calcEndingPastYear)}
+        </td>
+
+        {/* ទឹកប្រាក់ជំពាក់ចុងត្រាឆមាស១ (Col AD) */}
+        <td 
+          onClick={() => selectFormulaColumn('AD', 'ជំពាក់ចុងត្រាឆមាស១ (Remaining First Semester Debt)', r.studentCode, r.nameKhmer, r.no, r.calcEndingSem1)}
+          className={`py-1 px-1 text-right font-mono text-slate-700 border-r border-slate-300 cursor-pointer transition-colors ${
+            selectedColumn === 'AD' && selectedCellInfo.studentCode === r.studentCode ? 'bg-amber-200 ring-2 ring-amber-500' : 'hover:bg-amber-50'
+          }`}
+          title="ចុចដើម្បីមើល ឬកែសម្រួលរូបមន្ត [AD]"
+        >
+          {formatCurrency(r.calcEndingSem1)}
+        </td>
+
+        {/* ទឹកប្រាក់ជំពាក់ចុងត្រាឆមាស២ (Col AE) */}
+        <td 
+          onClick={() => selectFormulaColumn('AE', 'ជំពាក់ចុងត្រាឆមាស២ (Remaining Second Semester Debt)', r.studentCode, r.nameKhmer, r.no, r.calcEndingSem2)}
+          className={`py-1 px-1 text-right font-mono text-slate-700 border-r border-slate-300 cursor-pointer transition-colors ${
+            selectedColumn === 'AE' && selectedCellInfo.studentCode === r.studentCode ? 'bg-amber-200 ring-2 ring-amber-500' : 'hover:bg-amber-50'
+          }`}
+          title="ចុចដើម្បីមើល ឬកែសម្រួលរូបមន្ត [AE]"
+        >
+          {formatCurrency(r.calcEndingSem2)}
+        </td>
+
+        {/* Actions */}
+        <td className="no-print py-1 px-1.5 text-center">
+          <button
+            onClick={() => {
+              const found = students.find(s => s.studentCode === r.studentCode);
+              if (found) {
+                setSelectedStudentId(found.id);
+                setActiveTab('student-profile');
+              }
+            }}
+            className="px-2 py-0.5 bg-blue-50 hover:bg-blue-100 text-blue-700 text-[9px] font-semibold rounded cursor-pointer transition-colors"
+            title="មើលប្រវត្តិរូបសិស្ស"
+          >
+            Profile
+          </button>
+        </td>
+      </tr>
+    );
+  };
+
+  // Helper to render Khmer Class Header
+  const renderKhmerClassHeader = (collapseKey: string, group: KhmerClassGroup | KhmerClassSubgroup) => {
+    const isCollapsed = collapsedClasses[collapseKey] ?? collapsedClasses[group.className];
+    return (
+      <tr 
+        key={`header-${collapseKey}`}
+        onClick={() => toggleClassCollapse(collapseKey)}
+        className="bg-amber-100/90 hover:bg-amber-200/90 text-slate-900 border-y-2 border-amber-300 font-khmer cursor-pointer transition-colors select-none"
+      >
+        <td colSpan={31} className="py-2 px-3">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div className="flex items-center gap-2">
+              <span className="p-1 rounded bg-amber-200 text-amber-900">
+                {isCollapsed ? <ChevronRight className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+              </span>
+              <GraduationCap className="w-4 h-4 text-amber-800" />
+              <span className="font-black text-xs text-slate-900 tracking-wide">
+                ថ្នាក់៖ {group.className}
+              </span>
+              <span className="ml-2 px-2 py-0.5 rounded-full text-[10px] font-bold bg-white text-slate-700 border border-amber-200">
+                {group.records.length} សិស្ស
+              </span>
+              <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold border ${
+                group.hasDebtCount > 0 
+                  ? 'bg-rose-50 text-rose-700 border-rose-200' 
+                  : 'bg-emerald-50 text-emerald-700 border-emerald-200'
+              }`}>
+                {group.hasDebtCount > 0 ? `${group.hasDebtCount} សិស្សមានបំណុល` : 'គ្មានបំណុល'}
+              </span>
+            </div>
+
+            <div className="flex items-center gap-3 text-xs font-mono">
+              <span className="text-emerald-800 font-khmer">
+                បានបង់សរុប: <b className="font-mono text-emerald-700">${formatAmount(group.subtotals.totalPaid)}</b>
+              </span>
+              <span className="text-red-900 font-khmer">
+                ជំពាក់សរុប: <b className="font-mono text-rose-700 font-black">${formatAmount(group.subtotals.endingTotal)}</b>
+              </span>
+              <span className="text-[10px] text-slate-500 font-sans italic no-print">
+                ({isCollapsed ? 'ចុចដើម្បីពង្រីក' : 'ចុចដើម្បីបង្រួម'})
+              </span>
+            </div>
+          </div>
+        </td>
+      </tr>
+    );
+  };
+
+  // Helper to render Khmer Class Subtotal
+  const renderKhmerClassSubtotal = (group: KhmerClassGroup | KhmerClassSubgroup) => {
+    return (
+      <tr key={`subtotal-${group.className}`} className="bg-amber-100/70 font-bold text-slate-900 border-t-2 border-b-2 border-amber-300 font-khmer text-[9px]">
+        <td colSpan={8} className="py-1.5 px-3 text-center border-r border-slate-400 text-[9.5px]">
+          សរុបរង ({group.className}) ({group.records.length} សិស្ស)
+        </td>
+        <td className="py-1.5 px-1.5 text-right font-mono border-r border-slate-400">
+          ${formatAmount(group.subtotals.fullTuition)}
+        </td>
+        <td colSpan={2} className="py-1.5 px-1 text-center font-mono border-r border-slate-400">-</td>
+        <td className="py-1.5 px-2 text-right font-mono bg-amber-200/80 border-r border-slate-400">
+          ${formatAmount(group.subtotals.amountPayable)}
+        </td>
+        <td className="py-1.5 px-1 text-right font-mono border-r border-slate-400">
+          {formatCurrency(group.subtotals.pastYearDue)}
+        </td>
+        <td className="py-1.5 px-1 text-right font-mono border-r border-slate-400">
+          ${formatAmount(group.subtotals.newYearSem1)}
+        </td>
+        <td className="py-1.5 px-1 text-right font-mono border-r border-slate-400">
+          ${formatAmount(group.subtotals.newYearSem2)}
+        </td>
+        <td className="py-1.5 px-1.5 text-right font-mono border-r border-slate-400">
+          ${formatAmount(group.subtotals.beginningBalanceDue)}
+        </td>
+        <td colSpan={2} className="border-r border-slate-400 text-center">-</td>
+        <td className="py-1.5 px-1 text-right font-mono border-r border-slate-400">
+          ${formatAmount(group.subtotals.installment1)}
+        </td>
+        <td colSpan={2} className="border-r border-slate-400 text-center">-</td>
+        <td className="py-1.5 px-1 text-right font-mono border-r border-slate-400">
+          {formatCurrency(group.subtotals.installment2)}
+        </td>
+        <td colSpan={2} className="border-r border-slate-400 text-center">-</td>
+        <td className="py-1.5 px-1 text-right font-mono border-r border-slate-400">
+          {formatCurrency(group.subtotals.installment3)}
+        </td>
+        <td className="py-1.5 px-2 text-right font-mono text-emerald-900 bg-emerald-200/80 border-r border-slate-400">
+          ${formatAmount(group.subtotals.totalPaid)}
+        </td>
+        <td className="py-1.5 px-1.5 text-right font-mono text-red-900 bg-rose-200/80 border-r border-slate-400">
+          ${formatAmount(group.subtotals.endingTotal)}
+        </td>
+        <td className="py-1.5 px-1 text-right font-mono border-r border-slate-400">
+          {formatCurrency(group.subtotals.endingPastYear)}
+        </td>
+        <td className="py-1.5 px-1 text-right font-mono border-r border-slate-400">
+          ${formatAmount(group.subtotals.endingSem1)}
+        </td>
+        <td className="py-1.5 px-1 text-right font-mono border-r border-slate-400">
+          ${formatAmount(group.subtotals.endingSem2)}
+        </td>
+        <td className="no-print"></td>
+      </tr>
+    );
+  };
+
+  // Helper to render Khmer Branch Header
+  const renderKhmerBranchHeader = (bGroup: KhmerBranchGroup) => {
+    const isBranchCollapsed = collapsedBranches[bGroup.branchId];
+    return (
+      <tr 
+        key={`branch-${bGroup.branchId}`}
+        onClick={() => toggleBranchCollapse(bGroup.branchId)}
+        className="bg-gradient-to-r from-slate-900 via-slate-800 to-amber-950 text-white font-khmer cursor-pointer select-none transition-colors border-y-2 border-amber-500 shadow-xs"
+      >
+        <td colSpan={31} className="py-2.5 px-3">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="flex items-center gap-2.5">
+              <span className="p-1 rounded bg-white/10 hover:bg-white/20 text-white transition-colors">
+                {isBranchCollapsed ? <ChevronRight className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+              </span>
+              <Building className="w-4 h-4 text-amber-400" />
+              <span className="font-black text-xs text-white tracking-wide">
+                {bGroup.branch?.code || bGroup.branchId} — {bGroup.branch?.nameKhmer || 'សាខា'} ({bGroup.branch?.city || ''})
+              </span>
+              <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-400 text-slate-950 font-mono">
+                {bGroup.records.length} សិស្ស
+              </span>
+              <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold border ${
+                bGroup.hasDebtCount > 0 
+                  ? 'bg-rose-500/25 text-rose-200 border-rose-500/40' 
+                  : 'bg-emerald-500/25 text-emerald-200 border-emerald-500/40'
+              }`}>
+                {bGroup.hasDebtCount > 0 ? `${bGroup.hasDebtCount} សិស្សមានបំណុល` : 'គ្មានបំណុល'}
+              </span>
+            </div>
+
+            <div className="flex items-center gap-4 text-xs font-mono">
+              <span className="text-emerald-300 font-khmer">
+                បានបង់សរុប: <b className="font-mono text-emerald-200">${formatAmount(bGroup.subtotals.totalPaid)}</b>
+              </span>
+              <span className="text-rose-300 font-khmer">
+                ជំពាក់ចុងត្រាសរុប: <b className="font-mono text-rose-200 font-black">${formatAmount(bGroup.subtotals.endingTotal)}</b>
+              </span>
+              <span className="text-[10px] text-slate-400 font-sans italic no-print">
+                ({isBranchCollapsed ? 'ចុចដើម្បីពង្រីក' : 'ចុចដើម្បីបង្រួម'})
+              </span>
+            </div>
+          </div>
+        </td>
+      </tr>
+    );
+  };
+
+  // Helper to render Khmer Branch Subtotal Row
+  const renderKhmerBranchSubtotal = (bGroup: KhmerBranchGroup) => {
+    return (
+      <tr key={`branch-subtotal-${bGroup.branchId}`} className="bg-amber-200/90 font-bold text-slate-950 border-t-2 border-b-2 border-amber-500 font-khmer text-[9.5px]">
+        <td colSpan={8} className="py-2 px-3 text-center border-r border-amber-400">
+          🏢 សរុបរងសាខា ({bGroup.branch?.code || bGroup.branchId} - {bGroup.branch?.nameKhmer}) ({bGroup.records.length} សិស្ស)
+        </td>
+        <td className="py-2 px-1.5 text-right font-mono border-r border-amber-400">
+          ${formatAmount(bGroup.subtotals.fullTuition)}
+        </td>
+        <td colSpan={2} className="border-r border-amber-400 text-center">-</td>
+        <td className="py-2 px-2 text-right font-mono bg-amber-300 border-r border-amber-400">
+          ${formatAmount(bGroup.subtotals.amountPayable)}
+        </td>
+        <td className="py-2 px-1 text-right font-mono border-r border-amber-400">
+          {formatCurrency(bGroup.subtotals.pastYearDue)}
+        </td>
+        <td className="py-2 px-1 text-right font-mono border-r border-amber-400">
+          ${formatAmount(bGroup.subtotals.newYearSem1)}
+        </td>
+        <td className="py-2 px-1 text-right font-mono border-r border-amber-400">
+          ${formatAmount(bGroup.subtotals.newYearSem2)}
+        </td>
+        <td className="py-2 px-1.5 text-right font-mono border-r border-amber-400">
+          ${formatAmount(bGroup.subtotals.beginningBalanceDue)}
+        </td>
+        <td colSpan={2} className="border-r border-amber-400 text-center">-</td>
+        <td className="py-2 px-1 text-right font-mono border-r border-amber-400">
+          ${formatAmount(bGroup.subtotals.installment1)}
+        </td>
+        <td colSpan={2} className="border-r border-amber-400 text-center">-</td>
+        <td className="py-2 px-1 text-right font-mono border-r border-amber-400">
+          {formatCurrency(bGroup.subtotals.installment2)}
+        </td>
+        <td colSpan={2} className="border-r border-amber-400 text-center">-</td>
+        <td className="py-2 px-1 text-right font-mono border-r border-amber-400">
+          {formatCurrency(bGroup.subtotals.installment3)}
+        </td>
+        <td className="py-2 px-2 text-right font-mono text-emerald-950 bg-emerald-300 border-r border-amber-400">
+          ${formatAmount(bGroup.subtotals.totalPaid)}
+        </td>
+        <td className="py-2 px-1.5 text-right font-mono text-rose-950 bg-rose-300 border-r border-amber-400">
+          ${formatAmount(bGroup.subtotals.endingTotal)}
+        </td>
+        <td className="py-2 px-1 text-right font-mono border-r border-amber-400">
+          {formatCurrency(bGroup.subtotals.endingPastYear)}
+        </td>
+        <td className="py-2 px-1 text-right font-mono border-r border-amber-400">
+          ${formatAmount(bGroup.subtotals.endingSem1)}
+        </td>
+        <td className="py-2 px-1 text-right font-mono border-r border-amber-400">
+          ${formatAmount(bGroup.subtotals.endingSem2)}
+        </td>
+        <td className="no-print"></td>
+      </tr>
+    );
+  };
+
+  // Helper to render English Student Row with interactive branch reassignment & formula cell clicking
+  const renderEnglishRow = (r: CalculatedEnglishRecord, idx: number) => {
+    const hasPaid = r.calcTotalPaidTuition > 0 || r.calcTotalPaidAdmin > 0;
+    return (
+      <tr 
+        key={r.id || idx} 
+        className={`hover:bg-amber-50/50 transition-colors ${
+          hasPaid ? 'bg-emerald-50/20' : ''
+        }`}
+      >
+        <td className="py-1 px-1 text-center font-mono border-r border-slate-300">{r.no || idx + 1}</td>
+        <td className="py-1 px-1.5 font-mono font-medium text-slate-900 border-r border-slate-300">
+          <div className="flex flex-col">
+            <span>{r.studentCode}</span>
+            <div className="no-print mt-0.5 flex items-center gap-1">
+              <select
+                value={r.branchId || 'fbis-02'}
+                onChange={(e) => handleBranchChange(r.id, e.target.value)}
+                className="text-[8px] font-mono font-semibold py-0.2 px-1 bg-slate-100 hover:bg-white text-slate-700 border border-slate-300 rounded cursor-pointer"
+                title="ផ្លាស់ប្ដូរសាខារបស់សិស្សនេះ (Change Branch)"
+              >
+                {branches.map(b => (
+                  <option key={b.id} value={b.id}>{b.code}</option>
+                ))}
+              </select>
+            </div>
+          </div>
+        </td>
+        <td className="py-1 px-2 font-khmer font-bold text-slate-900 border-r border-slate-300">
+          {r.nameKhmer}
+        </td>
+        <td className="py-1 px-2 font-sans text-slate-700 border-r border-slate-300">
+          {r.nameEnglish}
+        </td>
+        <td className="py-1 px-1 text-center font-mono border-r border-slate-300">{r.gender}</td>
+        <td className="py-1 px-1.5 font-mono text-[8.5px] text-slate-600 border-r border-slate-300">{r.dob}</td>
+        <td className="py-1 px-1 font-mono text-[8.5px] text-center border-r border-slate-300">{r.academicYear}</td>
+        <td className="py-1 px-1.5 font-khmer text-center text-slate-600 border-r border-slate-300">{r.status}</td>
+        
+        {/* ថ្លៃឈ្នួលសិក្សា១ឆ្នាំ */}
+        <td className="py-1 px-1.5 text-right font-mono font-medium border-r border-slate-300">
+          {formatCurrency(r.fullTuition)}
+        </td>
+
+        {/* បញ្ចុះតម្លៃ ក្នុង១ឆ្នាំ (% & ការលើកទឹកចិត្ត) */}
+        <td className="py-1 px-1 text-center font-mono text-slate-700 border-r border-slate-300">
+          {r.discountPercent ? `${r.discountPercent}%` : '-'}
+        </td>
+        <td className="py-1 px-1 text-right font-mono text-slate-700 border-r border-slate-300">
+          {formatCurrency(r.annualIncentive)}
+        </td>
+
+        {/* ការលើកទឹកចិត្ត */}
+        <td className="py-1 px-1 text-right font-mono text-slate-700 border-r border-slate-300">
+          {formatCurrency(r.incentive)}
+        </td>
+
+        {/* ទឹកប្រាក់ត្រូវបង់ (ថ្លៃឈ្នួលសិក្សា & ថ្លៃសេវារដ្ឋបាល) */}
+        <td 
+          onClick={() => selectFormulaColumn('Q', 'ទឹកប្រាក់ត្រូវបង់-ថ្លៃឈ្នួល (Net Tuition Payable)', r.studentCode, r.nameKhmer, r.no, r.calcAmountPayableTuition)}
+          className={`py-1 px-1.5 text-right font-mono font-bold text-slate-900 border-r border-slate-300 cursor-pointer transition-colors ${
+            selectedColumn === 'Q' && selectedCellInfo.studentCode === r.studentCode ? 'bg-amber-200 ring-2 ring-amber-500' : 'bg-amber-50/60 hover:bg-amber-100'
+          }`}
+          title="ចុចដើម្បីមើល/កែប្រែរូបមន្ត [Q]"
+        >
+          {formatCurrency(r.calcAmountPayableTuition)}
+        </td>
+        <td 
+          onClick={() => selectFormulaColumn('R', 'ទឹកប្រាក់ត្រូវបង់-សេវារដ្ឋបាល (Admin Fee Payable)', r.studentCode, r.nameKhmer, r.no, r.calcAmountPayableAdminFee)}
+          className={`py-1 px-1.5 text-right font-mono font-medium text-slate-800 border-r border-slate-300 cursor-pointer transition-colors ${
+            selectedColumn === 'R' && selectedCellInfo.studentCode === r.studentCode ? 'bg-amber-200 ring-2 ring-amber-500' : 'bg-amber-50/40 hover:bg-amber-100'
+          }`}
+          title="ចុចដើម្បីមើល/កែប្រែរូបមន្ត [R]"
+        >
+          {formatCurrency(r.calcAmountPayableAdminFee)}
+        </td>
+
+        {/* ទឹកប្រាក់ជំពាក់ឆ្នាំសិក្សាចាស់ (ថ្លៃឈ្នួលសិក្សា & ថ្លៃសេវារដ្ឋបាល) */}
+        <td className="py-1 px-1 text-right font-mono text-slate-500 border-r border-slate-300">
+          {formatCurrency(r.calcPastYearTuition)}
+        </td>
+        <td className="py-1 px-1 text-right font-mono text-slate-500 border-r border-slate-300">
+          {formatCurrency(r.calcPastYearAdmin)}
+        </td>
+
+        {/* ទឹកប្រាក់ជំពាក់ឆ្នាំថ្មី (Q1..Q4) */}
+        <td className="py-1 px-1 text-right font-mono text-slate-600 border-r border-slate-300">
+          {formatCurrency(r.calcBegQ1Tuition)}
+        </td>
+        <td className="py-1 px-1 text-right font-mono text-slate-500 border-r border-slate-300">
+          {formatCurrency(r.calcBegQ1Admin)}
+        </td>
+        <td className="py-1 px-1 text-right font-mono text-slate-700 border-r border-slate-300">
+          {formatCurrency(r.calcBegQ2Tuition)}
+        </td>
+        <td className="py-1 px-1 text-right font-mono text-slate-700 border-r border-slate-300">
+          {formatCurrency(r.calcBegQ2Admin)}
+        </td>
+        <td className="py-1 px-1 text-right font-mono text-slate-700 border-r border-slate-300">
+          {formatCurrency(r.calcBegQ3Tuition)}
+        </td>
+        <td className="py-1 px-1 text-right font-mono text-slate-700 border-r border-slate-300">
+          {formatCurrency(r.calcBegQ3Admin)}
+        </td>
+        <td className="py-1 px-1 text-right font-mono text-slate-700 border-r border-slate-300">
+          {formatCurrency(r.calcBegQ4Tuition)}
+        </td>
+        <td className="py-1 px-1 text-right font-mono text-slate-700 border-r border-slate-300">
+          {formatCurrency(r.calcBegQ4Admin)}
+        </td>
+
+        {/* ទឹកប្រាក់ជំពាក់ដើមត្រាសរុបរួម */}
+        <td 
+          onClick={() => selectFormulaColumn('AC', 'ជំពាក់ដើមត្រាសរុបរួម-ថ្លៃឈ្នួល (Opening Tuition Debt)', r.studentCode, r.nameKhmer, r.no, r.calcBegTotalTuition)}
+          className={`py-1 px-1 text-right font-mono font-bold text-slate-900 border-r border-slate-300 cursor-pointer transition-colors ${
+            selectedColumn === 'AC' && selectedCellInfo.studentCode === r.studentCode ? 'bg-amber-200 ring-2 ring-amber-500' : 'hover:bg-amber-50'
+          }`}
+          title="ចុចដើម្បីមើល/កែប្រែរូបមន្ត [AC]"
+        >
+          {formatCurrency(r.calcBegTotalTuition)}
+        </td>
+        <td 
+          onClick={() => selectFormulaColumn('AD', 'ជំពាក់ដើមត្រាសរុបរួម-សេវារដ្ឋបាល (Opening Admin Debt)', r.studentCode, r.nameKhmer, r.no, r.calcBegTotalAdmin)}
+          className={`py-1 px-1 text-right font-mono font-bold text-slate-900 border-r border-slate-300 cursor-pointer transition-colors ${
+            selectedColumn === 'AD' && selectedCellInfo.studentCode === r.studentCode ? 'bg-amber-200 ring-2 ring-amber-500' : 'hover:bg-amber-50'
+          }`}
+          title="ចុចដើម្បីមើល/កែប្រែរូបមន្ត [AD]"
+        >
+          {formatCurrency(r.calcBegTotalAdmin)}
+        </td>
+
+        {/* ព័ត៌មានការបង់ប្រាក់លើកទី១ */}
+        <td className="py-1 px-1 font-mono text-[8.5px] text-slate-600 border-r border-slate-300">
+          {r.installment1?.date || '-'}
+        </td>
+        <td className="py-1 px-1 font-mono text-[8.5px] text-blue-700 border-r border-slate-300">
+          {r.installment1?.invoiceNo || r.installment1?.invoiceNoTuition || '-'}
+        </td>
+        <td className="py-1 px-1 text-right font-mono font-medium text-emerald-700 border-r border-slate-300">
+          {formatCurrency(r.calcInst1Amount)}
+        </td>
+
+        {/* ព័ត៌មានការបង់ប្រាក់លើកទី២ */}
+        <td className="py-1 px-1 font-mono text-[8.5px] text-slate-600 border-r border-slate-300">
+          {r.installment2?.date || '-'}
+        </td>
+        <td className="py-1 px-1 font-mono text-[8.5px] text-blue-700 border-r border-slate-300">
+          {r.installment2?.invoiceNo || r.installment2?.invoiceNoAdmin || '-'}
+        </td>
+        <td className="py-1 px-1 text-right font-mono font-medium text-emerald-700 border-r border-slate-300">
+          {formatCurrency(r.calcInst2Amount)}
+        </td>
+
+        {/* ទឹកប្រាក់បានបង់សរុប (ថ្លៃឈ្នួលសិក្សា & ថ្លៃសេវារដ្ឋបាល) */}
+        <td 
+          onClick={() => selectFormulaColumn('AQ', 'ទឹកប្រាក់បានបង់សរុប-ថ្លៃឈ្នួល (Tuition Paid)', r.studentCode, r.nameKhmer, r.no, r.calcTotalPaidTuition)}
+          className={`py-1 px-1.5 text-right font-mono font-bold text-emerald-800 border-r border-slate-300 cursor-pointer transition-colors ${
+            selectedColumn === 'AQ' && selectedCellInfo.studentCode === r.studentCode ? 'bg-emerald-200 ring-2 ring-emerald-500' : 'bg-emerald-50/50 hover:bg-emerald-100'
+          }`}
+          title="ចុចដើម្បីមើល/កែប្រែរូបមន្ត [AQ]"
+        >
+          {formatCurrency(r.calcTotalPaidTuition)}
+        </td>
+        <td 
+          onClick={() => selectFormulaColumn('AR', 'ទឹកប្រាក់បានបង់សរុប-សេវារដ្ឋបាល (Admin Paid)', r.studentCode, r.nameKhmer, r.no, r.calcTotalPaidAdmin)}
+          className={`py-1 px-1.5 text-right font-mono font-bold text-emerald-800 border-r border-slate-300 cursor-pointer transition-colors ${
+            selectedColumn === 'AR' && selectedCellInfo.studentCode === r.studentCode ? 'bg-emerald-200 ring-2 ring-emerald-500' : 'bg-emerald-50/50 hover:bg-emerald-100'
+          }`}
+          title="ចុចដើម្បីមើល/កែប្រែរូបមន្ត [AR]"
+        >
+          {formatCurrency(r.calcTotalPaidAdmin)}
+        </td>
+
+        {/* ទឹកប្រាក់ជំពាក់ចុងត្រាសរុបរួម (ថ្លៃឈ្នួលសិក្សា & ថ្លៃសេវារដ្ឋបាល) */}
+        <td 
+          onClick={() => selectFormulaColumn('AS', 'ជំពាក់ចុងត្រាសរុបរួម-ថ្លៃឈ្នួល (Closing Tuition Debt)', r.studentCode, r.nameKhmer, r.no, r.calcEndTotalTuition)}
+          className={`py-1 px-1 text-right font-mono font-bold border-r border-slate-300 cursor-pointer transition-colors ${
+            selectedColumn === 'AS' && selectedCellInfo.studentCode === r.studentCode ? 'bg-rose-200 ring-2 ring-rose-500' : r.calcEndTotalTuition > 0 ? 'text-red-700 bg-rose-50 hover:bg-rose-100' : 'text-slate-400 hover:bg-slate-100'
+          }`}
+          title="ចុចដើម្បីមើល/កែប្រែរូបមន្ត [AS]"
+        >
+          {formatCurrency(r.calcEndTotalTuition)}
+        </td>
+        <td 
+          onClick={() => selectFormulaColumn('AT', 'ជំពាក់ចុងត្រាសរុបរួម-សេវារដ្ឋបាល (Closing Admin Debt)', r.studentCode, r.nameKhmer, r.no, r.calcEndTotalAdmin)}
+          className={`py-1 px-1 text-right font-mono font-bold border-r border-slate-300 cursor-pointer transition-colors ${
+            selectedColumn === 'AT' && selectedCellInfo.studentCode === r.studentCode ? 'bg-rose-200 ring-2 ring-rose-500' : r.calcEndTotalAdmin > 0 ? 'text-red-700 bg-rose-50 hover:bg-rose-100' : 'text-slate-400 hover:bg-slate-100'
+          }`}
+          title="ចុចដើម្បីមើល/កែប្រែរូបមន្ត [AT]"
+        >
+          {formatCurrency(r.calcEndTotalAdmin)}
+        </td>
+
+        {/* ចំនួនដងបង់ប្រាក់ / សូចនាករបំណុល (Col AU) */}
+        <td 
+          onClick={() => selectFormulaColumn('AU', 'សូចនាករបំណុល (Debtor Indicator Flag)', r.studentCode, r.nameKhmer, r.no, r.calcPaymentCount)}
+          className={`py-1 px-1 text-center font-mono text-[9px] border-r border-slate-300 cursor-pointer transition-colors ${
+            selectedColumn === 'AU' && selectedCellInfo.studentCode === r.studentCode ? 'bg-amber-200 ring-2 ring-amber-500' : 'hover:bg-amber-50'
+          }`}
+          title="ចុចដើម្បីមើល/កែប្រែរូបមន្ត [AU]"
+        >
+          {r.calcPaymentCount}
+        </td>
+
+        {/* ជំពាក់ចុងត្រាឆ្នាំចាស់ */}
+        <td className="py-1 px-1 text-right font-mono text-slate-700 border-r border-slate-300">
+          {formatCurrency(r.calcEndPastYearTuition)}
+        </td>
+        <td className="py-1 px-1 text-right font-mono text-slate-700 border-r border-slate-300">
+          {formatCurrency(r.calcEndPastYearAdmin)}
+        </td>
+
+        {/* ជំពាក់ចុងត្រា Q1..Q4 */}
+        <td className="py-1 px-1 text-right font-mono text-slate-700 border-r border-slate-300">
+          {formatCurrency(r.calcEndQ1Tuition)}
+        </td>
+        <td className="py-1 px-1 text-right font-mono text-slate-700 border-r border-slate-300">
+          {formatCurrency(r.calcEndQ1Admin)}
+        </td>
+        <td className="py-1 px-1 text-right font-mono text-slate-700 border-r border-slate-300">
+          {formatCurrency(r.calcEndQ2Tuition)}
+        </td>
+        <td className="py-1 px-1 text-right font-mono text-slate-700 border-r border-slate-300">
+          {formatCurrency(r.calcEndQ2Admin)}
+        </td>
+        <td className="py-1 px-1 text-right font-mono text-slate-700 border-r border-slate-300">
+          {formatCurrency(r.calcEndQ3Tuition)}
+        </td>
+        <td className="py-1 px-1 text-right font-mono text-slate-700 border-r border-slate-300">
+          {formatCurrency(r.calcEndQ3Admin)}
+        </td>
+        <td className="py-1 px-1 text-right font-mono text-slate-700 border-r border-slate-300">
+          {formatCurrency(r.calcEndQ4Tuition)}
+        </td>
+        <td className="py-1 px-1 text-right font-mono text-slate-700 border-r border-slate-300">
+          {formatCurrency(r.calcEndQ4Admin)}
+        </td>
+
+        {/* ចំណាត់ថ្នាក់សិស្ស / កំណត់សម្គាល់ */}
+        <td className="py-1 px-1 text-center font-khmer text-[8.5px] text-slate-600 border-r border-slate-300">
+          {r.notes || '-'}
+        </td>
+        <td className="py-1 px-1 text-center text-slate-400 border-r border-slate-300">-</td>
+
+        {/* Actions */}
+        <td className="no-print py-1 px-1.5 text-center">
+          <button
+            onClick={() => {
+              const found = students.find(s => s.studentCode === r.studentCode);
+              if (found) {
+                setSelectedStudentId(found.id);
+                setActiveTab('student-profile');
+              }
+            }}
+            className="px-2 py-0.5 bg-blue-50 hover:bg-blue-100 text-blue-700 text-[9px] font-semibold rounded cursor-pointer transition-colors"
+            title="មើលប្រវត្តិរូបសិស្ស"
+          >
+            Profile
+          </button>
+        </td>
+      </tr>
+    );
+  };
+
+  // Helper to render English Class Header
+  const renderEnglishClassHeader = (collapseKey: string, group: EnglishClassGroup | EnglishClassSubgroup) => {
+    const isCollapsed = collapsedClasses[collapseKey] ?? collapsedClasses[group.className];
+    return (
+      <tr 
+        key={`header-${collapseKey}`}
+        onClick={() => toggleClassCollapse(collapseKey)}
+        className="bg-sky-100/90 hover:bg-sky-200/90 text-slate-900 border-y-2 border-sky-300 font-khmer cursor-pointer transition-colors select-none"
+      >
+        <td colSpan={49} className="py-2 px-3">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div className="flex items-center gap-2">
+              <span className="p-1 rounded bg-sky-200 text-sky-900">
+                {isCollapsed ? <ChevronRight className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+              </span>
+              <GraduationCap className="w-4 h-4 text-sky-800" />
+              <span className="font-black text-xs text-slate-900 tracking-wide">
+                ថ្នាក់៖ {group.className}
+              </span>
+              <span className="ml-2 px-2 py-0.5 rounded-full text-[10px] font-bold bg-white text-slate-700 border border-sky-200">
+                {group.records.length} សិស្ស
+              </span>
+              <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold border ${
+                group.hasDebtCount > 0 
+                  ? 'bg-rose-50 text-rose-700 border-rose-200' 
+                  : 'bg-emerald-50 text-emerald-700 border-emerald-200'
+              }`}>
+                {group.hasDebtCount > 0 ? `${group.hasDebtCount} សិស្សមានបំណុល` : 'គ្មានបំណុល'}
+              </span>
+            </div>
+
+            <div className="flex items-center gap-3 text-xs font-mono">
+              <span className="text-emerald-800 font-khmer">
+                បានបង់សរុប: <b className="font-mono text-emerald-700">${formatAmount(group.subtotals.totPaidTuition + group.subtotals.totPaidAdmin)}</b>
+              </span>
+              <span className="text-red-900 font-khmer">
+                ជំពាក់សរុប: <b className="font-mono text-rose-700 font-black">${formatAmount(group.subtotals.endTotalTuition + group.subtotals.endTotalAdmin)}</b>
+              </span>
+              <span className="text-[10px] text-slate-500 font-sans italic no-print">
+                ({isCollapsed ? 'ចុចដើម្បីពង្រីក' : 'ចុចដើម្បីបង្រួម'})
+              </span>
+            </div>
+          </div>
+        </td>
+      </tr>
+    );
+  };
+
+  // Helper to render English Class Subtotal Row
+  const renderEnglishClassSubtotal = (group: EnglishClassGroup | EnglishClassSubgroup) => {
+    return (
+      <tr key={`subtotal-${group.className}`} className="bg-sky-100/70 font-bold text-slate-900 border-t-2 border-b-2 border-sky-300 font-khmer text-[8.5px]">
+        <td colSpan={8} className="py-1.5 px-2 text-center border-r border-slate-400 text-[9px]">
+          សរុបរង ({group.className}) ({group.records.length} សិស្ស)
+        </td>
+        <td className="py-1.5 px-1 text-right font-mono border-r border-slate-400">
+          ${formatAmount(group.subtotals.fullTuition)}
+        </td>
+        <td className="border-r border-slate-400 text-center font-mono">-</td>
+        <td className="py-1.5 px-1 text-right font-mono border-r border-slate-400">
+          {formatCurrency(group.subtotals.annualIncentive)}
+        </td>
+        <td className="py-1.5 px-1 text-right font-mono border-r border-slate-400">
+          {formatCurrency(group.subtotals.incentive)}
+        </td>
+        <td className="py-1.5 px-1 text-right font-mono bg-amber-200/80 border-r border-slate-400">
+          ${formatAmount(group.subtotals.amountPayableTuition)}
+        </td>
+        <td className="py-1.5 px-1 text-right font-mono bg-amber-200/80 border-r border-slate-400">
+          ${formatAmount(group.subtotals.amountPayableAdminFee)}
+        </td>
+        <td className="py-1.5 px-1 text-right font-mono border-r border-slate-400">
+          {formatCurrency(group.subtotals.pastYearTuition)}
+        </td>
+        <td className="py-1.5 px-1 text-right font-mono border-r border-slate-400">
+          {formatCurrency(group.subtotals.pastYearAdmin)}
+        </td>
+        <td className="py-1.5 px-1 text-right font-mono border-r border-slate-400">
+          {formatCurrency(group.subtotals.begQ1Tuition)}
+        </td>
+        <td className="py-1.5 px-1 text-right font-mono border-r border-slate-400">
+          {formatCurrency(group.subtotals.begQ1Admin)}
+        </td>
+        <td className="py-1.5 px-1 text-right font-mono border-r border-slate-400">
+          {formatCurrency(group.subtotals.begQ2Tuition)}
+        </td>
+        <td className="py-1.5 px-1 text-right font-mono border-r border-slate-400">
+          {formatCurrency(group.subtotals.begQ2Admin)}
+        </td>
+        <td className="py-1.5 px-1 text-right font-mono border-r border-slate-400">
+          {formatCurrency(group.subtotals.begQ3Tuition)}
+        </td>
+        <td className="py-1.5 px-1 text-right font-mono border-r border-slate-400">
+          {formatCurrency(group.subtotals.begQ3Admin)}
+        </td>
+        <td className="py-1.5 px-1 text-right font-mono border-r border-slate-400">
+          {formatCurrency(group.subtotals.begQ4Tuition)}
+        </td>
+        <td className="py-1.5 px-1 text-right font-mono border-r border-slate-400">
+          {formatCurrency(group.subtotals.begQ4Admin)}
+        </td>
+        <td className="py-1.5 px-1 text-right font-mono border-r border-slate-400">
+          ${formatAmount(group.subtotals.begNewYearTuition)}
+        </td>
+        <td className="py-1.5 px-1 text-right font-mono border-r border-slate-400">
+          ${formatAmount(group.subtotals.begNewYearAdmin)}
+        </td>
+        <td colSpan={2} className="border-r border-slate-400 text-center">-</td>
+        <td className="py-1.5 px-1 text-right font-mono border-r border-slate-400">
+          ${formatAmount(group.subtotals.inst1Amount)}
+        </td>
+        <td colSpan={2} className="border-r border-slate-400 text-center">-</td>
+        <td className="py-1.5 px-1 text-right font-mono border-r border-slate-400">
+          ${formatAmount(group.subtotals.inst2Amount)}
+        </td>
+        <td className="py-1.5 px-1 text-right font-mono text-emerald-900 bg-emerald-200/80 border-r border-slate-400">
+          ${formatAmount(group.subtotals.totPaidTuition)}
+        </td>
+        <td className="py-1.5 px-1 text-right font-mono text-emerald-900 bg-emerald-200/80 border-r border-slate-400">
+          ${formatAmount(group.subtotals.totPaidAdmin)}
+        </td>
+        <td className="py-1.5 px-1 text-right font-mono text-red-900 bg-rose-200/80 border-r border-slate-400">
+          ${formatAmount(group.subtotals.endTotalTuition)}
+        </td>
+        <td className="py-1.5 px-1 text-right font-mono text-red-900 bg-rose-200/80 border-r border-slate-400">
+          ${formatAmount(group.subtotals.endTotalAdmin)}
+        </td>
+        <td className="border-r border-slate-400 text-center">-</td>
+        <td className="py-1.5 px-1 text-right font-mono border-r border-slate-400">
+          {formatCurrency(group.subtotals.endPastYearTuition)}
+        </td>
+        <td className="py-1.5 px-1 text-right font-mono border-r border-slate-400">
+          {formatCurrency(group.subtotals.endPastYearAdmin)}
+        </td>
+        <td className="py-1.5 px-1 text-right font-mono border-r border-slate-400">
+          {formatCurrency(group.subtotals.endQ1Tuition)}
+        </td>
+        <td className="py-1.5 px-1 text-right font-mono border-r border-slate-400">
+          {formatCurrency(group.subtotals.endQ1Admin)}
+        </td>
+        <td className="py-1.5 px-1 text-right font-mono border-r border-slate-400">
+          {formatCurrency(group.subtotals.endQ2Tuition)}
+        </td>
+        <td className="py-1.5 px-1 text-right font-mono border-r border-slate-400">
+          {formatCurrency(group.subtotals.endQ2Admin)}
+        </td>
+        <td className="py-1.5 px-1 text-right font-mono border-r border-slate-400">
+          {formatCurrency(group.subtotals.endQ3Tuition)}
+        </td>
+        <td className="py-1.5 px-1 text-right font-mono border-r border-slate-400">
+          {formatCurrency(group.subtotals.endQ3Admin)}
+        </td>
+        <td className="py-1.5 px-1 text-right font-mono border-r border-slate-400">
+          {formatCurrency(group.subtotals.endQ4Tuition)}
+        </td>
+        <td className="py-1.5 px-1 text-right font-mono border-r border-slate-400">
+          ${formatAmount(group.subtotals.endQ4Admin)}
+        </td>
+        <td colSpan={2} className="border-r border-slate-400 text-center">-</td>
+        <td className="no-print"></td>
+      </tr>
+    );
+  };
+
+  // Helper to render English Branch Header
+  const renderEnglishBranchHeader = (bGroup: EnglishBranchGroup) => {
+    const isBranchCollapsed = collapsedBranches[bGroup.branchId];
+    return (
+      <tr 
+        key={`branch-${bGroup.branchId}`}
+        onClick={() => toggleBranchCollapse(bGroup.branchId)}
+        className="bg-gradient-to-r from-slate-900 via-slate-800 to-sky-950 text-white font-khmer cursor-pointer select-none transition-colors border-y-2 border-sky-500 shadow-xs"
+      >
+        <td colSpan={49} className="py-2.5 px-3">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="flex items-center gap-2.5">
+              <span className="p-1 rounded bg-white/10 hover:bg-white/20 text-white transition-colors">
+                {isBranchCollapsed ? <ChevronRight className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+              </span>
+              <Building className="w-4 h-4 text-sky-400" />
+              <span className="font-black text-xs text-white tracking-wide">
+                {bGroup.branch?.code || bGroup.branchId} — {bGroup.branch?.nameKhmer || 'សាខា'} ({bGroup.branch?.city || ''})
+              </span>
+              <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-sky-400 text-slate-950 font-mono">
+                {bGroup.records.length} សិស្ស
+              </span>
+              <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold border ${
+                bGroup.hasDebtCount > 0 
+                  ? 'bg-rose-500/25 text-rose-200 border-rose-500/40' 
+                  : 'bg-emerald-500/25 text-emerald-200 border-emerald-500/40'
+              }`}>
+                {bGroup.hasDebtCount > 0 ? `${bGroup.hasDebtCount} សិស្សមានបំណុល` : 'គ្មានបំណុល'}
+              </span>
+            </div>
+
+            <div className="flex items-center gap-4 text-xs font-mono">
+              <span className="text-emerald-300 font-khmer">
+                បានបង់សរុប: <b className="font-mono text-emerald-200">${formatAmount(bGroup.subtotals.totPaidTuition + bGroup.subtotals.totPaidAdmin)}</b>
+              </span>
+              <span className="text-rose-300 font-khmer">
+                ជំពាក់ចុងត្រាសរុប: <b className="font-mono text-rose-200 font-black">${formatAmount(bGroup.subtotals.endTotalTuition + bGroup.subtotals.endTotalAdmin)}</b>
+              </span>
+              <span className="text-[10px] text-slate-400 font-sans italic no-print">
+                ({isBranchCollapsed ? 'ចុចដើម្បីពង្រីក' : 'ចុចដើម្បីបង្រួម'})
+              </span>
+            </div>
+          </div>
+        </td>
+      </tr>
+    );
+  };
+
+  // Helper to render English Branch Subtotal Row
+  const renderEnglishBranchSubtotal = (bGroup: EnglishBranchGroup) => {
+    return (
+      <tr key={`branch-subtotal-${bGroup.branchId}`} className="bg-sky-200/90 font-bold text-slate-950 border-t-2 border-b-2 border-sky-500 font-khmer text-[8.5px]">
+        <td colSpan={8} className="py-2 px-2 text-center border-r border-sky-400 text-[9px]">
+          🏢 សរុបរងសាខា ({bGroup.branch?.code || bGroup.branchId} - {bGroup.branch?.nameKhmer}) ({bGroup.records.length} សិស្ស)
+        </td>
+        <td className="py-2 px-1 text-right font-mono border-r border-sky-400">
+          ${formatAmount(bGroup.subtotals.fullTuition)}
+        </td>
+        <td className="border-r border-sky-400 text-center font-mono">-</td>
+        <td className="py-2 px-1 text-right font-mono border-r border-sky-400">
+          {formatCurrency(bGroup.subtotals.annualIncentive)}
+        </td>
+        <td className="py-2 px-1 text-right font-mono border-r border-sky-400">
+          {formatCurrency(bGroup.subtotals.incentive)}
+        </td>
+        <td className="py-2 px-1 text-right font-mono bg-amber-300 border-r border-sky-400">
+          ${formatAmount(bGroup.subtotals.amountPayableTuition)}
+        </td>
+        <td className="py-2 px-1 text-right font-mono bg-amber-300 border-r border-sky-400">
+          ${formatAmount(bGroup.subtotals.amountPayableAdminFee)}
+        </td>
+        <td className="py-2 px-1 text-right font-mono border-r border-sky-400">
+          {formatCurrency(bGroup.subtotals.pastYearTuition)}
+        </td>
+        <td className="py-2 px-1 text-right font-mono border-r border-sky-400">
+          {formatCurrency(bGroup.subtotals.pastYearAdmin)}
+        </td>
+        <td className="py-2 px-1 text-right font-mono border-r border-sky-400">
+          {formatCurrency(bGroup.subtotals.begQ1Tuition)}
+        </td>
+        <td className="py-2 px-1 text-right font-mono border-r border-sky-400">
+          {formatCurrency(bGroup.subtotals.begQ1Admin)}
+        </td>
+        <td className="py-2 px-1 text-right font-mono border-r border-sky-400">
+          {formatCurrency(bGroup.subtotals.begQ2Tuition)}
+        </td>
+        <td className="py-2 px-1 text-right font-mono border-r border-sky-400">
+          {formatCurrency(bGroup.subtotals.begQ2Admin)}
+        </td>
+        <td className="py-2 px-1 text-right font-mono border-r border-sky-400">
+          {formatCurrency(bGroup.subtotals.begQ3Tuition)}
+        </td>
+        <td className="py-2 px-1 text-right font-mono border-r border-sky-400">
+          {formatCurrency(bGroup.subtotals.begQ3Admin)}
+        </td>
+        <td className="py-2 px-1 text-right font-mono border-r border-sky-400">
+          {formatCurrency(bGroup.subtotals.begQ4Tuition)}
+        </td>
+        <td className="py-2 px-1 text-right font-mono border-r border-sky-400">
+          {formatCurrency(bGroup.subtotals.begQ4Admin)}
+        </td>
+        <td className="py-2 px-1 text-right font-mono border-r border-sky-400">
+          ${formatAmount(bGroup.subtotals.begNewYearTuition)}
+        </td>
+        <td className="py-2 px-1 text-right font-mono border-r border-sky-400">
+          ${formatAmount(bGroup.subtotals.begNewYearAdmin)}
+        </td>
+        <td colSpan={2} className="border-r border-sky-400 text-center">-</td>
+        <td className="py-2 px-1 text-right font-mono border-r border-sky-400">
+          ${formatAmount(bGroup.subtotals.inst1Amount)}
+        </td>
+        <td colSpan={2} className="border-r border-sky-400 text-center">-</td>
+        <td className="py-2 px-1 text-right font-mono border-r border-sky-400">
+          ${formatAmount(bGroup.subtotals.inst2Amount)}
+        </td>
+        <td className="py-2 px-1 text-right font-mono text-emerald-950 bg-emerald-300 border-r border-sky-400">
+          ${formatAmount(bGroup.subtotals.totPaidTuition)}
+        </td>
+        <td className="py-2 px-1 text-right font-mono text-emerald-950 bg-emerald-300 border-r border-sky-400">
+          ${formatAmount(bGroup.subtotals.totPaidAdmin)}
+        </td>
+        <td className="py-2 px-1 text-right font-mono text-rose-950 bg-rose-300 border-r border-sky-400">
+          ${formatAmount(bGroup.subtotals.endTotalTuition)}
+        </td>
+        <td className="py-2 px-1 text-right font-mono text-rose-950 bg-rose-300 border-r border-sky-400">
+          ${formatAmount(bGroup.subtotals.endTotalAdmin)}
+        </td>
+        <td className="border-r border-sky-400 text-center">-</td>
+        <td className="py-2 px-1 text-right font-mono border-r border-sky-400">
+          {formatCurrency(bGroup.subtotals.endPastYearTuition)}
+        </td>
+        <td className="py-2 px-1 text-right font-mono border-r border-sky-400">
+          {formatCurrency(bGroup.subtotals.endPastYearAdmin)}
+        </td>
+        <td className="py-2 px-1 text-right font-mono border-r border-sky-400">
+          {formatCurrency(bGroup.subtotals.endQ1Tuition)}
+        </td>
+        <td className="py-2 px-1 text-right font-mono border-r border-sky-400">
+          {formatCurrency(bGroup.subtotals.endQ1Admin)}
+        </td>
+        <td className="py-2 px-1 text-right font-mono border-r border-sky-400">
+          {formatCurrency(bGroup.subtotals.endQ2Tuition)}
+        </td>
+        <td className="py-2 px-1 text-right font-mono border-r border-sky-400">
+          {formatCurrency(bGroup.subtotals.endQ2Admin)}
+        </td>
+        <td className="py-2 px-1 text-right font-mono border-r border-sky-400">
+          {formatCurrency(bGroup.subtotals.endQ3Tuition)}
+        </td>
+        <td className="py-2 px-1 text-right font-mono border-r border-sky-400">
+          {formatCurrency(bGroup.subtotals.endQ3Admin)}
+        </td>
+        <td className="py-2 px-1 text-right font-mono border-r border-sky-400">
+          {formatCurrency(bGroup.subtotals.endQ4Tuition)}
+        </td>
+        <td className="py-2 px-1 text-right font-mono border-r border-sky-400">
+          ${formatAmount(bGroup.subtotals.endQ4Admin)}
+        </td>
+        <td colSpan={2} className="border-r border-sky-400 text-center">-</td>
+        <td className="no-print"></td>
+      </tr>
+    );
+  };
+
   return (
     <div className="space-y-4">
       {/* Top Banner & Mode Switcher */}
@@ -797,6 +2198,27 @@ export const DueReportsMatrix: React.FC = () => {
 
         {/* Action Buttons */}
         <div className="flex items-center gap-2">
+          {/* SQL Import & Analytics Button */}
+          <button
+            onClick={() => setActiveTab('sql-import')}
+            className="px-3 py-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-xs font-bold rounded-lg border border-indigo-200 transition-colors cursor-pointer flex items-center gap-1.5 shadow-2xs"
+            title="នាំចូល និងវិភាគទិន្នន័យ SQL តាមសាខា (Import & Analyze SQL by Branch)"
+          >
+            <Database className="w-4 h-4" />
+            <span className="font-khmer">វិភាគ SQL តាមសាខា</span>
+          </button>
+
+          {/* Sync Students Button */}
+          <button
+            onClick={handleSyncWithStudents}
+            disabled={isSyncing}
+            className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white text-xs font-bold rounded-lg transition-colors cursor-pointer flex items-center gap-1.5 shadow-xs"
+            title="ធ្វើសមកាលកម្មទិន្នន័យសិស្សពីបញ្ជីសិស្សទូទៅ (Sync Students from Central Directory)"
+          >
+            <RefreshCw className={`w-4 h-4 ${isSyncing ? 'animate-spin' : ''}`} />
+            <span className="font-khmer">Sync ពីបញ្ជីសិស្ស</span>
+          </button>
+
           <button
             onClick={activeProgram === 'khmer' ? handleExportKhmerExcel : handleExportEnglishExcel}
             className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-lg transition-colors cursor-pointer flex items-center gap-1.5 shadow-xs"
@@ -815,10 +2237,29 @@ export const DueReportsMatrix: React.FC = () => {
         </div>
       </div>
 
+      {/* Student Count Alignment & Parity Banner */}
+      <div className="no-print bg-indigo-50/70 border border-indigo-200 p-2.5 rounded-xl flex flex-wrap items-center justify-between gap-2 text-xs">
+        <div className="flex items-center gap-2">
+          <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+          <span className="font-khmer text-slate-700">
+            ស្ថានភាពសមកាលកម្មទិន្នន័យ៖ 
+            <b className="text-slate-900 mx-1">សិស្សចុះឈ្មោះក្នុងប្រព័ន្ធ ({students.length} នាក់)</b> 
+            និង <b className="text-indigo-800 mx-1">សិស្សក្នុងតារាងបំណុល ({khmerDueRecords.length + englishDueRecords.length} នាក់)</b>
+          </span>
+          <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-300 font-khmer">
+            ✓ សមកាលកម្ម ១០០%
+          </span>
+        </div>
+
+        <div className="flex items-center gap-3 text-[11px] text-slate-600 font-khmer">
+          <span>💡 បំណុលឆ្នាំចាស់ (Last Year Owed) ត្រូវបាន Sync ស្វ័យប្រវត្តិតាមប្រវត្តិរូបសិស្ស</span>
+        </div>
+      </div>
+
       {/* Filter and Configuration Bar */}
       <div className="no-print bg-slate-50 p-3 rounded-xl border border-slate-200 flex flex-wrap items-center justify-between gap-3 text-xs">
         <div className="flex flex-wrap items-center gap-3">
-          <div className="relative min-w-[240px]">
+          <div className="relative min-w-[220px]">
             <input
               type="text"
               placeholder="Search by Student ID (e.g. FBIS5478), name..."
@@ -827,6 +2268,29 @@ export const DueReportsMatrix: React.FC = () => {
               className="w-full h-8 pl-8 pr-3 text-xs border border-slate-300 rounded-md focus:ring-1 focus:ring-blue-500 bg-white"
             />
             <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-2.5" />
+          </div>
+
+          {/* Branch Selector Filter */}
+          <div className="flex items-center gap-1.5">
+            <Building className="w-3.5 h-3.5 text-amber-600" />
+            <span className="font-khmer text-slate-600">សាខា:</span>
+            <select
+              value={selectedBranchFilter}
+              onChange={(e) => {
+                setSelectedBranchFilter(e.target.value);
+                if (e.target.value !== 'all') {
+                  setCurrentBranchId(e.target.value);
+                }
+              }}
+              className="h-8 px-2 text-xs border border-slate-300 rounded-md bg-white font-khmer min-w-[145px]"
+            >
+              <option value="all">🏢 គ្រប់សាខាទាំងអស់ (All Branches)</option>
+              {branches.map(b => (
+                <option key={b.id} value={b.id}>
+                  {b.code} - {b.nameKhmer}
+                </option>
+              ))}
+            </select>
           </div>
 
           <div className="flex items-center gap-1.5">
@@ -863,6 +2327,48 @@ export const DueReportsMatrix: React.FC = () => {
                 <option key={cls} value={cls}>{cls}</option>
               ))}
             </select>
+          </div>
+
+          {/* Group by Branch Toggle and Controls */}
+          <div className="flex items-center gap-1 bg-white p-0.5 rounded-lg border border-slate-300 shadow-2xs">
+            <button
+              onClick={() => setGroupByBranch(!groupByBranch)}
+              className={`h-7 px-2.5 rounded-md font-khmer text-xs flex items-center gap-1.5 transition-colors cursor-pointer ${
+                groupByBranch
+                  ? 'bg-amber-600 text-white font-bold shadow-2xs'
+                  : 'text-slate-600 hover:bg-slate-100'
+              }`}
+              title="បែងចែក និងតម្រៀបរបាយការណ៍តាមសាខានីមួយៗ"
+            >
+              <Building className="w-3.5 h-3.5" />
+              <span>តម្រៀបតាមសាខា</span>
+              {groupByBranch && (
+                <span className="ml-1 text-[10px] bg-white/25 px-1.5 py-0.5 rounded-full font-mono">
+                  {activeProgram === 'khmer' ? groupedKhmerByBranch.length : groupedEnglishByBranch.length} សាខា
+                </span>
+              )}
+            </button>
+            
+            {groupByBranch && (
+              <div className="flex items-center gap-1 pl-1 border-l border-slate-200">
+                <button
+                  onClick={expandAllBranches}
+                  className="h-7 px-2 text-[11px] text-slate-600 hover:text-amber-700 hover:bg-slate-100 rounded cursor-pointer transition-colors flex items-center gap-1"
+                  title="ពង្រីកគ្រប់សាខាទាំងអស់"
+                >
+                  <Maximize2 className="w-3 h-3" />
+                  <span className="font-khmer">ពង្រីក</span>
+                </button>
+                <button
+                  onClick={collapseAllBranches}
+                  className="h-7 px-2 text-[11px] text-slate-600 hover:text-amber-700 hover:bg-slate-100 rounded cursor-pointer transition-colors flex items-center gap-1"
+                  title="បង្រួមគ្រប់សាខាទាំងអស់"
+                >
+                  <Minimize2 className="w-3 h-3" />
+                  <span className="font-khmer">បង្រួម</span>
+                </button>
+              </div>
+            )}
           </div>
 
           {/* Grouping Toggle and Controls */}
@@ -1276,432 +2782,56 @@ export const DueReportsMatrix: React.FC = () => {
 
               {/* Body Rows */}
               <tbody className="divide-y divide-slate-200 text-slate-800">
-                {groupByClass ? (
+                {groupByBranch ? (
+                  groupedKhmerByBranch.map(bGroup => {
+                    const isBranchCollapsed = collapsedBranches[bGroup.branchId];
+                    return (
+                      <React.Fragment key={bGroup.branchId}>
+                        {renderKhmerBranchHeader(bGroup)}
+                        {!isBranchCollapsed && (
+                          <>
+                            {groupByClass ? (
+                              bGroup.classGroups.map(cGroup => {
+                                const collapseKey = `${bGroup.branchId}_${cGroup.className}`;
+                                const isClassCollapsed = collapsedClasses[collapseKey] ?? collapsedClasses[cGroup.className];
+                                return (
+                                  <React.Fragment key={cGroup.className}>
+                                    {renderKhmerClassHeader(collapseKey, cGroup)}
+                                    {!isClassCollapsed && (
+                                      <>
+                                        {cGroup.records.map((r, idx) => renderKhmerRow(r, idx))}
+                                        {renderKhmerClassSubtotal(cGroup)}
+                                      </>
+                                    )}
+                                  </React.Fragment>
+                                );
+                              })
+                            ) : (
+                              bGroup.records.map((r, idx) => renderKhmerRow(r, idx))
+                            )}
+                            {renderKhmerBranchSubtotal(bGroup)}
+                          </>
+                        )}
+                      </React.Fragment>
+                    );
+                  })
+                ) : groupByClass ? (
                   groupedKhmerList.map(group => {
-                    const isCollapsed = collapsedClasses[group.className];
+                    const isClassCollapsed = collapsedClasses[group.className];
                     return (
                       <React.Fragment key={group.className}>
-                        {/* Class Group Header Banner */}
-                        <tr 
-                          onClick={() => toggleClassCollapse(group.className)}
-                          className="bg-amber-100/90 hover:bg-amber-200/90 text-slate-900 border-y-2 border-amber-300 font-khmer cursor-pointer transition-colors select-none"
-                        >
-                          <td colSpan={31} className="py-2 px-3">
-                            <div className="flex flex-wrap items-center justify-between gap-2">
-                              <div className="flex items-center gap-2">
-                                <span className="p-1 rounded bg-amber-200 text-amber-900">
-                                  {isCollapsed ? <ChevronRight className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
-                                </span>
-                                <GraduationCap className="w-4 h-4 text-amber-800" />
-                                <span className="font-black text-xs text-slate-900 tracking-wide">
-                                  ថ្នាក់៖ {group.className}
-                                </span>
-                                <span className="ml-2 px-2 py-0.5 rounded-full text-[10px] font-bold bg-white text-slate-700 border border-amber-200">
-                                  {group.records.length} សិស្ស
-                                </span>
-                                <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold border ${
-                                  group.hasDebtCount > 0 
-                                    ? 'bg-rose-50 text-rose-700 border-rose-200' 
-                                    : 'bg-emerald-50 text-emerald-700 border-emerald-200'
-                                }`}>
-                                  {group.hasDebtCount > 0 ? `${group.hasDebtCount} សិស្សមានបំណុល` : 'គ្មានបំណុល'}
-                                </span>
-                              </div>
-
-                              <div className="flex items-center gap-3 text-xs font-mono">
-                                <span className="text-emerald-800 font-khmer">
-                                  បានបង់សរុប: <b className="font-mono text-emerald-700">${formatAmount(group.subtotals.totalPaid)}</b>
-                                </span>
-                                <span className="text-red-900 font-khmer">
-                                  ជំពាក់សរុប: <b className="font-mono text-rose-700 font-black">${formatAmount(group.subtotals.endingTotal)}</b>
-                                </span>
-                                <span className="text-[10px] text-slate-500 font-sans italic no-print">
-                                  ({isCollapsed ? 'ចុចដើម្បីពង្រីក' : 'ចុចដើម្បីបង្រួម'})
-                                </span>
-                              </div>
-                            </div>
-                          </td>
-                        </tr>
-
-                        {/* Records in this class group */}
-                        {!isCollapsed && group.records.map((r, idx) => (
-                          <tr 
-                            key={r.id || idx} 
-                            className={`hover:bg-amber-50/50 transition-colors ${
-                              r.hasEndingDebt ? 'bg-rose-50/20' : ''
-                            }`}
-                          >
-                            <td className="py-1 px-1 text-center font-mono border-r border-slate-300">{idx + 1}</td>
-                            <td className="py-1 px-1.5 font-mono font-medium text-slate-900 border-r border-slate-300">
-                              {r.studentCode}
-                            </td>
-                            <td className="py-1 px-2 font-khmer font-bold text-slate-900 border-r border-slate-300">
-                              {r.nameKhmer}
-                            </td>
-                            <td className="py-1 px-2 font-sans text-slate-700 border-r border-slate-300">
-                              {r.nameEnglish}
-                            </td>
-                            <td className="py-1 px-1 text-center font-khmer border-r border-slate-300">{r.gender}</td>
-                            <td className="py-1 px-1.5 font-mono text-[9px] text-slate-600 border-r border-slate-300">{r.dob}</td>
-                            <td className="py-1 px-1 font-mono text-[9px] text-center border-r border-slate-300">{r.academicYear}</td>
-                            <td className="py-1 px-1.5 font-khmer text-center text-slate-600 border-r border-slate-300">{r.status}</td>
-                            <td className="py-1 px-1.5 text-right font-mono font-medium border-r border-slate-300">
-                              $ {(r.fullTuition ?? 0).toFixed(2)}
-                            </td>
-
-                            {/* បញ្ចុះតម្លៃ % & លើកទឹកចិត្ត */}
-                            <td className="py-1 px-1 text-center font-mono text-slate-700 border-r border-slate-300">
-                              {r.discountPercent ? `${r.discountPercent}%` : '-'}
-                            </td>
-                            <td className="py-1 px-1 text-right font-mono text-slate-700 border-r border-slate-300">
-                              {formatCurrency(r.incentive)}
-                            </td>
-
-                            {/* ទឹកប្រាក់ត្រូវបង់ (Col M) */}
-                            <td 
-                              onClick={() => selectFormulaColumn('M', 'ទឹកប្រាក់ត្រូវបង់ (Net Tuition Payable)', r.studentCode, r.nameKhmer, r.no, r.calcAmountPayable)}
-                              className={`py-1 px-2 text-right font-mono font-bold text-slate-900 border-r border-slate-300 cursor-pointer transition-colors ${
-                                selectedColumn === 'M' && selectedCellInfo.studentCode === r.studentCode 
-                                  ? 'bg-amber-200 ring-2 ring-amber-500' 
-                                  : 'bg-amber-50/60 hover:bg-amber-100'
-                              }`}
-                              title="ចុចដើម្បីមើល ឬកែសម្រួលរូបមន្ត [M]"
-                            >
-                              {formatCurrency(r.calcAmountPayable)}
-                            </td>
-
-                            {/* ទឹកប្រាក់ជំពាក់ឆ្នាំសិក្សាចាស់ */}
-                            <td className="py-1 px-1 text-right font-mono text-slate-500 border-r border-slate-300">
-                              {formatCurrency(r.calcPastYearDue)}
-                            </td>
-
-                            {/* ទឹកប្រាក់ជំពាក់ឆ្នាំថ្មី (ឆមាសទី១ & ឆមាសទី២) */}
-                            <td className="py-1 px-1 text-right font-mono text-slate-700 border-r border-slate-300">
-                              {formatCurrency(r.calcNewYearSem1)}
-                            </td>
-                            <td className="py-1 px-1 text-right font-mono text-slate-700 border-r border-slate-300">
-                              {formatCurrency(r.calcNewYearSem2)}
-                            </td>
-
-                            {/* ទឹកប្រាក់ជំពាក់ដើមត្រា (Col Q) */}
-                            <td 
-                              onClick={() => selectFormulaColumn('Q', 'ទឹកប្រាក់ជំពាក់ដើមត្រា (Total Opening Debt)', r.studentCode, r.nameKhmer, r.no, r.calcBeginningBalanceDue)}
-                              className={`py-1 px-1.5 text-right font-mono font-semibold text-slate-900 border-r border-slate-300 cursor-pointer transition-colors ${
-                                selectedColumn === 'Q' && selectedCellInfo.studentCode === r.studentCode 
-                                  ? 'bg-amber-200 ring-2 ring-amber-500' 
-                                  : 'hover:bg-amber-100'
-                              }`}
-                              title="ចុចដើម្បីមើល ឬកែសម្រួលរូបមន្ត [Q]"
-                            >
-                              {formatCurrency(r.calcBeginningBalanceDue)}
-                            </td>
-
-                            {/* លើកទី១ */}
-                            <td className="py-1 px-1 font-mono text-[9px] text-slate-600 border-r border-slate-300">
-                              {r.installment1?.date || '-'}
-                            </td>
-                            <td className="py-1 px-1.5 font-mono text-[9px] text-blue-700 border-r border-slate-300">
-                              {r.installment1?.invoiceNo || '-'}
-                            </td>
-                            <td className="py-1 px-1 text-right font-mono font-medium text-emerald-700 border-r border-slate-300">
-                              {formatCurrency(r.calcPaid1)}
-                            </td>
-
-                            {/* លើកទី២ */}
-                            <td className="py-1 px-1 font-mono text-[9px] text-slate-600 border-r border-slate-300">
-                              {r.installment2?.date || '-'}
-                            </td>
-                            <td className="py-1 px-1.5 font-mono text-[9px] text-blue-700 border-r border-slate-300">
-                              {r.installment2?.invoiceNo || '-'}
-                            </td>
-                            <td className="py-1 px-1 text-right font-mono font-medium text-emerald-700 border-r border-slate-300">
-                              {formatCurrency(r.calcPaid2)}
-                            </td>
-
-                            {/* លើកទី៣ */}
-                            <td className="py-1 px-1 font-mono text-[9px] text-slate-600 border-r border-slate-300">
-                              {r.installment3?.date || '-'}
-                            </td>
-                            <td className="py-1 px-1.5 font-mono text-[9px] text-blue-700 border-r border-slate-300">
-                              {r.installment3?.invoiceNo || '-'}
-                            </td>
-                            <td className="py-1 px-1 text-right font-mono font-medium text-emerald-700 border-r border-slate-300">
-                              {formatCurrency(r.calcPaid3)}
-                            </td>
-
-                            {/* ទឹកប្រាក់បានបង់សរុប (Col AA) */}
-                            <td 
-                              onClick={() => selectFormulaColumn('AA', 'ទឹកប្រាក់បានបង់សរុប (Total Payments Received)', r.studentCode, r.nameKhmer, r.no, r.calcTotalPaid)}
-                              className={`py-1 px-2 text-right font-mono font-bold text-emerald-800 border-r border-slate-300 cursor-pointer transition-colors ${
-                                selectedColumn === 'AA' && selectedCellInfo.studentCode === r.studentCode 
-                                  ? 'bg-emerald-200 ring-2 ring-emerald-500' 
-                                  : 'bg-emerald-50/50 hover:bg-emerald-100'
-                              }`}
-                              title="ចុចដើម្បីមើល ឬកែសម្រួលរូបមន្ត [AA]"
-                            >
-                              {formatCurrency(r.calcTotalPaid)}
-                            </td>
-
-                            {/* ទឹកប្រាក់ជំពាក់ចុងត្រា (Col AB) */}
-                            <td 
-                              onClick={() => selectFormulaColumn('AB', 'ទឹកប្រាក់ជំពាក់ចុងត្រា (Closing Outstanding Debt)', r.studentCode, r.nameKhmer, r.no, r.calcEndingTotal)}
-                              className={`py-1 px-1.5 text-right font-mono font-bold border-r border-slate-300 cursor-pointer transition-colors ${
-                                selectedColumn === 'AB' && selectedCellInfo.studentCode === r.studentCode
-                                  ? 'bg-rose-200 ring-2 ring-rose-500'
-                                  : r.hasEndingDebt ? 'text-red-700 bg-rose-50 hover:bg-rose-100' : 'text-slate-400 hover:bg-slate-100'
-                              }`}
-                              title="ចុចដើម្បីមើល ឬកែសម្រួលរូបមន្ត [AB]"
-                            >
-                              {formatCurrency(r.calcEndingTotal)}
-                            </td>
-
-                            {/* ទឹកប្រាក់ជំពាក់ចុងត្រាឆ្នាំចាស់ (Col AC) */}
-                            <td 
-                              onClick={() => selectFormulaColumn('AC', 'ជំពាក់ចុងត្រាឆ្នាំចាស់ (Remaining Past Year Debt)', r.studentCode, r.nameKhmer, r.no, r.calcEndingPastYear)}
-                              className={`py-1 px-1 text-right font-mono text-slate-700 border-r border-slate-300 cursor-pointer transition-colors ${
-                                selectedColumn === 'AC' && selectedCellInfo.studentCode === r.studentCode ? 'bg-amber-200 ring-2 ring-amber-500' : 'hover:bg-amber-50'
-                              }`}
-                              title="ចុចដើម្បីមើល ឬកែសម្រួលរូបមន្ត [AC]"
-                            >
-                              {formatCurrency(r.calcEndingPastYear)}
-                            </td>
-
-                            {/* ទឹកប្រាក់ជំពាក់ចុងត្រាឆមាស១ (Col AD) */}
-                            <td 
-                              onClick={() => selectFormulaColumn('AD', 'ជំពាក់ចុងត្រាឆមាស១ (Remaining First Semester Debt)', r.studentCode, r.nameKhmer, r.no, r.calcEndingSem1)}
-                              className={`py-1 px-1 text-right font-mono text-slate-700 border-r border-slate-300 cursor-pointer transition-colors ${
-                                selectedColumn === 'AD' && selectedCellInfo.studentCode === r.studentCode ? 'bg-amber-200 ring-2 ring-amber-500' : 'hover:bg-amber-50'
-                              }`}
-                              title="ចុចដើម្បីមើល ឬកែសម្រួលរូបមន្ត [AD]"
-                            >
-                              {formatCurrency(r.calcEndingSem1)}
-                            </td>
-
-                            {/* ទឹកប្រាក់ជំពាក់ចុងត្រាឆមាស២ (Col AE) */}
-                            <td 
-                              onClick={() => selectFormulaColumn('AE', 'ជំពាក់ចុងត្រាឆមាស២ (Remaining Second Semester Debt)', r.studentCode, r.nameKhmer, r.no, r.calcEndingSem2)}
-                              className={`py-1 px-1 text-right font-mono text-slate-700 border-r border-slate-300 cursor-pointer transition-colors ${
-                                selectedColumn === 'AE' && selectedCellInfo.studentCode === r.studentCode ? 'bg-amber-200 ring-2 ring-amber-500' : 'hover:bg-amber-50'
-                              }`}
-                              title="ចុចដើម្បីមើល ឬកែសម្រួលរូបមន្ត [AE]"
-                            >
-                              {formatCurrency(r.calcEndingSem2)}
-                            </td>
-
-                            {/* Actions */}
-                            <td className="no-print py-1 px-1.5 text-center">
-                              <button
-                                onClick={() => {
-                                  const found = students.find(s => s.studentCode === r.studentCode);
-                                  if (found) {
-                                    setSelectedStudentId(found.id);
-                                    setActiveTab('student-profile');
-                                  }
-                                }}
-                                className="px-2 py-0.5 bg-blue-50 hover:bg-blue-100 text-blue-700 text-[9px] font-semibold rounded cursor-pointer transition-colors"
-                                title="មើលប្រវត្តិរូបសិស្ស"
-                              >
-                                Profile
-                              </button>
-                            </td>
-                          </tr>
-                        ))}
-
-                        {/* Subtotal Row for this Class */}
-                        {!isCollapsed && (
-                          <tr className="bg-amber-100/70 font-bold text-slate-900 border-t-2 border-b-2 border-amber-300 font-khmer text-[9px]">
-                            <td colSpan={8} className="py-1.5 px-3 text-center border-r border-slate-400 text-[9.5px]">
-                              សរុបរង ({group.className}) ({group.records.length} សិស្ស)
-                            </td>
-                            <td className="py-1.5 px-1.5 text-right font-mono border-r border-slate-400">
-                              ${formatAmount(group.subtotals.fullTuition)}
-                            </td>
-                            <td colSpan={2} className="py-1.5 px-1 text-center font-mono border-r border-slate-400">-</td>
-                            <td className="py-1.5 px-2 text-right font-mono bg-amber-200/80 border-r border-slate-400">
-                              ${formatAmount(group.subtotals.amountPayable)}
-                            </td>
-                            <td className="py-1.5 px-1 text-right font-mono border-r border-slate-400">
-                              {formatCurrency(group.subtotals.pastYearDue)}
-                            </td>
-                            <td className="py-1.5 px-1 text-right font-mono border-r border-slate-400">
-                              ${formatAmount(group.subtotals.newYearSem1)}
-                            </td>
-                            <td className="py-1.5 px-1 text-right font-mono border-r border-slate-400">
-                              ${formatAmount(group.subtotals.newYearSem2)}
-                            </td>
-                            <td className="py-1.5 px-1.5 text-right font-mono border-r border-slate-400">
-                              ${formatAmount(group.subtotals.beginningBalanceDue)}
-                            </td>
-                            <td colSpan={2} className="border-r border-slate-400 text-center">-</td>
-                            <td className="py-1.5 px-1 text-right font-mono border-r border-slate-400">
-                              ${formatAmount(group.subtotals.installment1)}
-                            </td>
-                            <td colSpan={2} className="border-r border-slate-400 text-center">-</td>
-                            <td className="py-1.5 px-1 text-right font-mono border-r border-slate-400">
-                              {formatCurrency(group.subtotals.installment2)}
-                            </td>
-                            <td colSpan={2} className="border-r border-slate-400 text-center">-</td>
-                            <td className="py-1.5 px-1 text-right font-mono border-r border-slate-400">
-                              {formatCurrency(group.subtotals.installment3)}
-                            </td>
-                            <td className="py-1.5 px-2 text-right font-mono text-emerald-900 bg-emerald-200/80 border-r border-slate-400">
-                              ${formatAmount(group.subtotals.totalPaid)}
-                            </td>
-                            <td className="py-1.5 px-1.5 text-right font-mono text-red-900 bg-rose-200/80 border-r border-slate-400">
-                              ${formatAmount(group.subtotals.endingTotal)}
-                            </td>
-                            <td className="py-1.5 px-1 text-right font-mono border-r border-slate-400">
-                              {formatCurrency(group.subtotals.endingPastYear)}
-                            </td>
-                            <td className="py-1.5 px-1 text-right font-mono border-r border-slate-400">
-                              ${formatAmount(group.subtotals.endingSem1)}
-                            </td>
-                            <td className="py-1.5 px-1 text-right font-mono border-r border-slate-400">
-                              ${formatAmount(group.subtotals.endingSem2)}
-                            </td>
-                            <td className="no-print"></td>
-                          </tr>
+                        {renderKhmerClassHeader(group.className, group)}
+                        {!isClassCollapsed && (
+                          <>
+                            {group.records.map((r, idx) => renderKhmerRow(r, idx))}
+                            {renderKhmerClassSubtotal(group)}
+                          </>
                         )}
                       </React.Fragment>
                     );
                   })
                 ) : (
-                  calculatedKhmerList.map((r, idx) => {
-                    return (
-                      <tr 
-                        key={r.id || idx} 
-                        className={`hover:bg-amber-50/50 transition-colors ${
-                          r.hasEndingDebt ? 'bg-rose-50/20' : ''
-                        }`}
-                      >
-                        <td className="py-1 px-1 text-center font-mono border-r border-slate-300">{r.no}</td>
-                        <td className="py-1 px-1.5 font-mono font-medium text-slate-900 border-r border-slate-300">
-                          {r.studentCode}
-                        </td>
-                        <td className="py-1 px-2 font-khmer font-bold text-slate-900 border-r border-slate-300">
-                          {r.nameKhmer}
-                        </td>
-                        <td className="py-1 px-2 font-sans text-slate-700 border-r border-slate-300">
-                          {r.nameEnglish}
-                        </td>
-                        <td className="py-1 px-1 text-center font-khmer border-r border-slate-300">{r.gender}</td>
-                        <td className="py-1 px-1.5 font-mono text-[9px] text-slate-600 border-r border-slate-300">{r.dob}</td>
-                        <td className="py-1 px-1 font-mono text-[9px] text-center border-r border-slate-300">{r.academicYear}</td>
-                        <td className="py-1 px-1.5 font-khmer text-center text-slate-600 border-r border-slate-300">{r.status}</td>
-                        <td className="py-1 px-1.5 text-right font-mono font-medium border-r border-slate-300">
-                          $ {(r.fullTuition ?? 0).toFixed(2)}
-                        </td>
-
-                        {/* បញ្ចុះតម្លៃ % & លើកទឹកចិត្ត */}
-                        <td className="py-1 px-1 text-center font-mono text-slate-700 border-r border-slate-300">
-                          {r.discountPercent ? `${r.discountPercent}%` : '-'}
-                        </td>
-                        <td className="py-1 px-1 text-right font-mono text-slate-700 border-r border-slate-300">
-                          {formatCurrency(r.incentive)}
-                        </td>
-
-                        {/* ទឹកប្រាក់ត្រូវបង់ */}
-                        <td className="py-1 px-2 text-right font-mono font-bold text-slate-900 bg-amber-50/60 border-r border-slate-300">
-                          {formatCurrency(r.calcAmountPayable)}
-                        </td>
-
-                        {/* ទឹកប្រាក់ជំពាក់ឆ្នាំសិក្សាចាស់ */}
-                        <td className="py-1 px-1 text-right font-mono text-slate-500 border-r border-slate-300">
-                          {formatCurrency(r.calcPastYearDue)}
-                        </td>
-
-                        {/* ទឹកប្រាក់ជំពាក់ឆ្នាំថ្មី (ឆមាសទី១ & ឆមាសទី២) */}
-                        <td className="py-1 px-1 text-right font-mono text-slate-700 border-r border-slate-300">
-                          {formatCurrency(r.calcNewYearSem1)}
-                        </td>
-                        <td className="py-1 px-1 text-right font-mono text-slate-700 border-r border-slate-300">
-                          {formatCurrency(r.calcNewYearSem2)}
-                        </td>
-
-                        {/* ទឹកប្រាក់ជំពាក់ដើមត្រា */}
-                        <td className="py-1 px-1.5 text-right font-mono font-semibold text-slate-900 border-r border-slate-300">
-                          {formatCurrency(r.calcBeginningBalanceDue)}
-                        </td>
-
-                        {/* លើកទី១ */}
-                        <td className="py-1 px-1 font-mono text-[9px] text-slate-600 border-r border-slate-300">
-                          {r.installment1?.date || '-'}
-                        </td>
-                        <td className="py-1 px-1.5 font-mono text-[9px] text-blue-700 border-r border-slate-300">
-                          {r.installment1?.invoiceNo || '-'}
-                        </td>
-                        <td className="py-1 px-1 text-right font-mono font-medium text-emerald-700 border-r border-slate-300">
-                          {formatCurrency(r.calcPaid1)}
-                        </td>
-
-                        {/* លើកទី២ */}
-                        <td className="py-1 px-1 font-mono text-[9px] text-slate-600 border-r border-slate-300">
-                          {r.installment2?.date || '-'}
-                        </td>
-                        <td className="py-1 px-1.5 font-mono text-[9px] text-blue-700 border-r border-slate-300">
-                          {r.installment2?.invoiceNo || '-'}
-                        </td>
-                        <td className="py-1 px-1 text-right font-mono font-medium text-emerald-700 border-r border-slate-300">
-                          {formatCurrency(r.calcPaid2)}
-                        </td>
-
-                        {/* លើកទី៣ */}
-                        <td className="py-1 px-1 font-mono text-[9px] text-slate-600 border-r border-slate-300">
-                          {r.installment3?.date || '-'}
-                        </td>
-                        <td className="py-1 px-1.5 font-mono text-[9px] text-blue-700 border-r border-slate-300">
-                          {r.installment3?.invoiceNo || '-'}
-                        </td>
-                        <td className="py-1 px-1 text-right font-mono font-medium text-emerald-700 border-r border-slate-300">
-                          {formatCurrency(r.calcPaid3)}
-                        </td>
-
-                        {/* ទឹកប្រាក់បានបង់សរុប */}
-                        <td className="py-1 px-2 text-right font-mono font-bold text-emerald-800 bg-emerald-50/50 border-r border-slate-300">
-                          {formatCurrency(r.calcTotalPaid)}
-                        </td>
-
-                        {/* ទឹកប្រាក់ជំពាក់ចុងត្រា */}
-                        <td className={`py-1 px-1.5 text-right font-mono font-bold border-r border-slate-300 ${
-                          r.hasEndingDebt ? 'text-red-700 bg-rose-50' : 'text-slate-400'
-                        }`}>
-                          {formatCurrency(r.calcEndingTotal)}
-                        </td>
-
-                        {/* ទឹកប្រាក់ជំពាក់ចុងត្រាឆ្នាំចាស់ */}
-                        <td className="py-1 px-1 text-right font-mono text-slate-700 border-r border-slate-300">
-                          {formatCurrency(r.calcEndingPastYear)}
-                        </td>
-
-                        {/* ទឹកប្រាក់ជំពាក់ចុងត្រាឆមាស១ */}
-                        <td className="py-1 px-1 text-right font-mono text-slate-700 border-r border-slate-300">
-                          {formatCurrency(r.calcEndingSem1)}
-                        </td>
-
-                        {/* ទឹកប្រាក់ជំពាក់ចុងត្រាឆមាស២ */}
-                        <td className="py-1 px-1 text-right font-mono text-slate-700 border-r border-slate-300">
-                          {formatCurrency(r.calcEndingSem2)}
-                        </td>
-
-                        {/* Actions */}
-                        <td className="no-print py-1 px-1.5 text-center">
-                          <button
-                            onClick={() => {
-                              const found = students.find(s => s.studentCode === r.studentCode);
-                              if (found) {
-                                setSelectedStudentId(found.id);
-                                setActiveTab('student-profile');
-                              }
-                            }}
-                            className="px-2 py-0.5 bg-blue-50 hover:bg-blue-100 text-blue-700 text-[9px] font-semibold rounded cursor-pointer transition-colors"
-                            title="មើលប្រវត្តិរូបសិស្ស"
-                          >
-                            Profile
-                          </button>
-                        </td>
-                      </tr>
-                    );
-                  })
+                  calculatedKhmerList.map((r, idx) => renderKhmerRow(r, idx))
                 )}
               </tbody>
 
@@ -2037,547 +3167,56 @@ export const DueReportsMatrix: React.FC = () => {
 
               {/* Body Rows */}
               <tbody className="divide-y divide-slate-200 text-slate-800">
-                {groupByClass ? (
+                {groupByBranch ? (
+                  groupedEnglishByBranch.map(bGroup => {
+                    const isBranchCollapsed = collapsedBranches[bGroup.branchId];
+                    return (
+                      <React.Fragment key={bGroup.branchId}>
+                        {renderEnglishBranchHeader(bGroup)}
+                        {!isBranchCollapsed && (
+                          <>
+                            {groupByClass ? (
+                              bGroup.classGroups.map(cGroup => {
+                                const collapseKey = `${bGroup.branchId}_${cGroup.className}`;
+                                const isClassCollapsed = collapsedClasses[collapseKey] ?? collapsedClasses[cGroup.className];
+                                return (
+                                  <React.Fragment key={cGroup.className}>
+                                    {renderEnglishClassHeader(collapseKey, cGroup)}
+                                    {!isClassCollapsed && (
+                                      <>
+                                        {cGroup.records.map((r, idx) => renderEnglishRow(r, idx))}
+                                        {renderEnglishClassSubtotal(cGroup)}
+                                      </>
+                                    )}
+                                  </React.Fragment>
+                                );
+                              })
+                            ) : (
+                              bGroup.records.map((r, idx) => renderEnglishRow(r, idx))
+                            )}
+                            {renderEnglishBranchSubtotal(bGroup)}
+                          </>
+                        )}
+                      </React.Fragment>
+                    );
+                  })
+                ) : groupByClass ? (
                   groupedEnglishList.map(group => {
-                    const isCollapsed = collapsedClasses[group.className];
+                    const isClassCollapsed = collapsedClasses[group.className];
                     return (
                       <React.Fragment key={group.className}>
-                        {/* Class Group Header Banner */}
-                        <tr 
-                          onClick={() => toggleClassCollapse(group.className)}
-                          className="bg-sky-100/90 hover:bg-sky-200/90 text-slate-900 border-y-2 border-sky-300 font-khmer cursor-pointer transition-colors select-none"
-                        >
-                          <td colSpan={48} className="py-2 px-3">
-                            <div className="flex flex-wrap items-center justify-between gap-2">
-                              <div className="flex items-center gap-2">
-                                <span className="p-1 rounded bg-sky-200 text-sky-900">
-                                  {isCollapsed ? <ChevronRight className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
-                                </span>
-                                <GraduationCap className="w-4 h-4 text-sky-800" />
-                                <span className="font-black text-xs text-slate-900 tracking-wide">
-                                  ថ្នាក់៖ {group.className}
-                                </span>
-                                <span className="ml-2 px-2 py-0.5 rounded-full text-[10px] font-bold bg-white text-slate-700 border border-sky-200">
-                                  {group.records.length} សិស្ស
-                                </span>
-                                <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold border ${
-                                  group.hasDebtCount > 0 
-                                    ? 'bg-rose-50 text-rose-700 border-rose-200' 
-                                    : 'bg-emerald-50 text-emerald-700 border-emerald-200'
-                                }`}>
-                                  {group.hasDebtCount > 0 ? `${group.hasDebtCount} សិស្សមានបំណុល` : 'គ្មានបំណុល'}
-                                </span>
-                              </div>
-
-                              <div className="flex items-center gap-3 text-xs font-mono">
-                                <span className="text-emerald-800 font-khmer">
-                                  បានបង់សរុប: <b className="font-mono text-emerald-700">${formatAmount(group.subtotals.totPaidTuition + group.subtotals.totPaidAdmin)}</b>
-                                </span>
-                                <span className="text-red-900 font-khmer">
-                                  ជំពាក់សរុប: <b className="font-mono text-rose-700 font-black">${formatAmount(group.subtotals.endTotalTuition + group.subtotals.endTotalAdmin)}</b>
-                                </span>
-                                <span className="text-[10px] text-slate-500 font-sans italic no-print">
-                                  ({isCollapsed ? 'ចុចដើម្បីពង្រីក' : 'ចុចដើម្បីបង្រួម'})
-                                </span>
-                              </div>
-                            </div>
-                          </td>
-                        </tr>
-
-                        {/* Records in this Class */}
-                        {!isCollapsed && group.records.map((r, idx) => {
-                          const hasPaid = r.calcTotalPaidTuition > 0 || r.calcTotalPaidAdmin > 0;
-
-                          return (
-                            <tr 
-                              key={r.id || idx} 
-                              className={`hover:bg-amber-50/50 transition-colors ${
-                                hasPaid ? 'bg-emerald-50/20' : ''
-                              }`}
-                            >
-                              <td className="py-1 px-1 text-center font-mono border-r border-slate-300">{idx + 1}</td>
-                              <td className="py-1 px-1.5 font-mono font-medium text-slate-900 border-r border-slate-300">
-                                {r.studentCode}
-                              </td>
-                              <td className="py-1 px-2 font-khmer font-bold text-slate-900 border-r border-slate-300">
-                                {r.nameKhmer}
-                              </td>
-                              <td className="py-1 px-2 font-sans text-slate-700 border-r border-slate-300">
-                                {r.nameEnglish}
-                              </td>
-                              <td className="py-1 px-1 text-center font-mono border-r border-slate-300">{r.gender}</td>
-                              <td className="py-1 px-1.5 font-mono text-[8.5px] text-slate-600 border-r border-slate-300">{r.dob}</td>
-                              <td className="py-1 px-1 font-mono text-[8.5px] text-center border-r border-slate-300">{r.academicYear}</td>
-                              <td className="py-1 px-1.5 font-khmer text-center text-slate-600 border-r border-slate-300">{r.status}</td>
-                              
-                              {/* ថ្លៃឈ្នួលសិក្សា១ឆ្នាំ */}
-                              <td className="py-1 px-1.5 text-right font-mono font-medium border-r border-slate-300">
-                                {formatCurrency(r.fullTuition)}
-                              </td>
-
-                              {/* បញ្ចុះតម្លៃ ក្នុង១ឆ្នាំ (% & ការលើកទឹកចិត្ត) */}
-                              <td className="py-1 px-1 text-center font-mono text-slate-700 border-r border-slate-300">
-                                {r.discountPercent ? `${r.discountPercent}%` : '-'}
-                              </td>
-                              <td className="py-1 px-1 text-right font-mono text-slate-700 border-r border-slate-300">
-                                {formatCurrency(r.annualIncentive)}
-                              </td>
-
-                              {/* ការលើកទឹកចិត្ត */}
-                              <td className="py-1 px-1 text-right font-mono text-slate-700 border-r border-slate-300">
-                                {formatCurrency(r.incentive)}
-                              </td>
-
-                              {/* ទឹកប្រាក់ត្រូវបង់ (ថ្លៃឈ្នួលសិក្សា & ថ្លៃសេវារដ្ឋបាល) */}
-                              <td className="py-1 px-1.5 text-right font-mono font-bold text-slate-900 bg-amber-50/60 border-r border-slate-300">
-                                {formatCurrency(r.calcAmountPayableTuition)}
-                              </td>
-                              <td className="py-1 px-1.5 text-right font-mono font-medium text-slate-800 bg-amber-50/40 border-r border-slate-300">
-                                {formatCurrency(r.calcAmountPayableAdminFee)}
-                              </td>
-
-                              {/* ទឹកប្រាក់ជំពាក់ឆ្នាំសិក្សាចាស់ (ថ្លៃឈ្នួលសិក្សា & ថ្លៃសេវារដ្ឋបាល) */}
-                              <td className="py-1 px-1 text-right font-mono text-slate-500 border-r border-slate-300">
-                                {formatCurrency(r.calcPastYearTuition)}
-                              </td>
-                              <td className="py-1 px-1 text-right font-mono text-slate-500 border-r border-slate-300">
-                                {formatCurrency(r.calcPastYearAdmin)}
-                              </td>
-
-                              {/* ទឹកប្រាក់ជំពាក់ឆ្នាំថ្មី (Q1..Q4) */}
-                              <td className="py-1 px-1 text-right font-mono text-slate-600 border-r border-slate-300">
-                                {formatCurrency(r.calcBegQ1Tuition)}
-                              </td>
-                              <td className="py-1 px-1 text-right font-mono text-slate-500 border-r border-slate-300">
-                                {formatCurrency(r.calcBegQ1Admin)}
-                              </td>
-                              <td className="py-1 px-1 text-right font-mono text-slate-700 border-r border-slate-300">
-                                {formatCurrency(r.calcBegQ2Tuition)}
-                              </td>
-                              <td className="py-1 px-1 text-right font-mono text-slate-700 border-r border-slate-300">
-                                {formatCurrency(r.calcBegQ2Admin)}
-                              </td>
-                              <td className="py-1 px-1 text-right font-mono text-slate-700 border-r border-slate-300">
-                                {formatCurrency(r.calcBegQ3Tuition)}
-                              </td>
-                              <td className="py-1 px-1 text-right font-mono text-slate-700 border-r border-slate-300">
-                                {formatCurrency(r.calcBegQ3Admin)}
-                              </td>
-                              <td className="py-1 px-1 text-right font-mono text-slate-700 border-r border-slate-300">
-                                {formatCurrency(r.calcBegQ4Tuition)}
-                              </td>
-                              <td className="py-1 px-1 text-right font-mono text-slate-700 border-r border-slate-300">
-                                {formatCurrency(r.calcBegQ4Admin)}
-                              </td>
-
-                              {/* ទឹកប្រាក់ជំពាក់ដើមត្រាសរុបរួម */}
-                              <td className="py-1 px-1 text-right font-mono font-bold text-slate-900 border-r border-slate-300">
-                                {formatCurrency(r.calcBegTotalTuition)}
-                              </td>
-                              <td className="py-1 px-1 text-right font-mono font-bold text-slate-900 border-r border-slate-300">
-                                {formatCurrency(r.calcBegTotalAdmin)}
-                              </td>
-
-                              {/* ព័ត៌មានការបង់ប្រាក់លើកទី១ */}
-                              <td className="py-1 px-1 font-mono text-[8.5px] text-slate-600 border-r border-slate-300">
-                                {r.installment1?.date || '-'}
-                              </td>
-                              <td className="py-1 px-1 font-mono text-[8.5px] text-blue-700 border-r border-slate-300">
-                                {r.installment1?.invoiceNo || r.installment1?.invoiceNoTuition || '-'}
-                              </td>
-                              <td className="py-1 px-1 text-right font-mono font-medium text-emerald-700 border-r border-slate-300">
-                                {formatCurrency(r.calcInst1Amount)}
-                              </td>
-
-                              {/* ព័ត៌មានការបង់ប្រាក់លើកទី២ */}
-                              <td className="py-1 px-1 font-mono text-[8.5px] text-slate-600 border-r border-slate-300">
-                                {r.installment2?.date || '-'}
-                              </td>
-                              <td className="py-1 px-1 font-mono text-[8.5px] text-blue-700 border-r border-slate-300">
-                                {r.installment2?.invoiceNo || r.installment2?.invoiceNoAdmin || '-'}
-                              </td>
-                              <td className="py-1 px-1 text-right font-mono font-medium text-emerald-700 border-r border-slate-300">
-                                {formatCurrency(r.calcInst2Amount)}
-                              </td>
-
-                              {/* ទឹកប្រាក់បានបង់សរុប (ថ្លៃឈ្នួលសិក្សា & ថ្លៃសេវារដ្ឋបាល) */}
-                              <td className="py-1 px-1 text-right font-mono font-bold text-emerald-800 bg-emerald-50/50 border-r border-slate-300">
-                                {formatCurrency(r.calcTotalPaidTuition)}
-                              </td>
-                              <td className="py-1 px-1 text-right font-mono font-bold text-emerald-800 bg-emerald-50/50 border-r border-slate-300">
-                                {formatCurrency(r.calcTotalPaidAdmin)}
-                              </td>
-
-                              {/* ទឹកប្រាក់ជំពាក់ចុងត្រាសរុបរួម (ថ្លៃឈ្នួលសិក្សា, ថ្លៃសេវារដ្ឋបាល, ចំនួនដង) */}
-                              <td className="py-1 px-1 text-right font-mono font-bold text-slate-900 bg-rose-50/50 border-r border-slate-300">
-                                {formatCurrency(r.calcEndTotalTuition)}
-                              </td>
-                              <td className="py-1 px-1 text-right font-mono font-bold text-slate-900 bg-rose-50/50 border-r border-slate-300">
-                                {formatCurrency(r.calcEndTotalAdmin)}
-                              </td>
-                              <td className="py-1 px-1 text-center font-mono border-r border-slate-300">
-                                {r.calcPaymentCount}
-                              </td>
-
-                              {/* ទឹកប្រាក់ជំពាក់ចុងត្រាឆ្នាំសិក្សាចាស់ */}
-                              <td className="py-1 px-1 text-right font-mono text-slate-500 border-r border-slate-300">
-                                {formatCurrency(r.calcEndPastYearTuition)}
-                              </td>
-                              <td className="py-1 px-1 text-right font-mono text-slate-500 border-r border-slate-300">
-                                {formatCurrency(r.calcEndPastYearAdmin)}
-                              </td>
-
-                              {/* ទឹកប្រាក់ជំពាក់ចុងត្រាឆ្នាំថ្មី (Q1..Q4) */}
-                              <td className="py-1 px-1 text-right font-mono text-slate-700 border-r border-slate-300">
-                                {formatCurrency(r.calcEndQ1Tuition)}
-                              </td>
-                              <td className="py-1 px-1 text-right font-mono text-slate-500 border-r border-slate-300">
-                                {formatCurrency(r.calcEndQ1Admin)}
-                              </td>
-                              <td className="py-1 px-1 text-right font-mono text-slate-700 border-r border-slate-300">
-                                {formatCurrency(r.calcEndQ2Tuition)}
-                              </td>
-                              <td className="py-1 px-1 text-right font-mono text-slate-700 border-r border-slate-300">
-                                {formatCurrency(r.calcEndQ2Admin)}
-                              </td>
-                              <td className="py-1 px-1 text-right font-mono text-slate-700 border-r border-slate-300">
-                                {formatCurrency(r.calcEndQ3Tuition)}
-                              </td>
-                              <td className="py-1 px-1 text-right font-mono text-slate-700 border-r border-slate-300">
-                                {formatCurrency(r.calcEndQ3Admin)}
-                              </td>
-                              <td className="py-1 px-1 text-right font-mono text-slate-700 border-r border-slate-300">
-                                {formatCurrency(r.calcEndQ4Tuition)}
-                              </td>
-                              <td className="py-1 px-1 text-right font-mono text-slate-700 border-r border-slate-300">
-                                {formatCurrency(r.calcEndQ4Admin)}
-                              </td>
-
-                              {/* Actions */}
-                              <td className="no-print py-1 px-1.5 text-center">
-                                <button
-                                  onClick={() => {
-                                    const found = students.find(s => s.studentCode === r.studentCode);
-                                    if (found) {
-                                      setSelectedStudentId(found.id);
-                                      setActiveTab('student-profile');
-                                    }
-                                  }}
-                                  className="px-2 py-0.5 bg-blue-50 hover:bg-blue-100 text-blue-700 text-[9px] font-semibold rounded cursor-pointer transition-colors"
-                                  title="មើលប្រវត្តិរូបសិស្ស"
-                                >
-                                  Profile
-                                </button>
-                              </td>
-                            </tr>
-                          );
-                        })}
-
-                        {/* Subtotal Row for this English Class */}
-                        {!isCollapsed && (
-                          <tr className="bg-sky-100/70 font-bold text-slate-900 border-t-2 border-b-2 border-sky-300 font-khmer text-[8.5px]">
-                            <td colSpan={8} className="py-1.5 px-2 text-center border-r border-slate-400 text-[9px]">
-                              សរុបរង ({group.className}) ({group.records.length} សិស្ស)
-                            </td>
-                            <td className="py-1.5 px-1 text-right font-mono border-r border-slate-400">
-                              ${formatAmount(group.subtotals.fullTuition)}
-                            </td>
-                            <td className="border-r border-slate-400 text-center font-mono">-</td>
-                            <td className="py-1.5 px-1 text-right font-mono border-r border-slate-400">
-                              {formatCurrency(group.subtotals.annualIncentive)}
-                            </td>
-                            <td className="py-1.5 px-1 text-right font-mono border-r border-slate-400">
-                              {formatCurrency(group.subtotals.incentive)}
-                            </td>
-                            <td className="py-1.5 px-1 text-right font-mono bg-amber-200/80 border-r border-slate-400">
-                              ${formatAmount(group.subtotals.amountPayableTuition)}
-                            </td>
-                            <td className="py-1.5 px-1 text-right font-mono bg-amber-200/80 border-r border-slate-400">
-                              ${formatAmount(group.subtotals.amountPayableAdminFee)}
-                            </td>
-                            <td className="py-1.5 px-1 text-right font-mono border-r border-slate-400">
-                              {formatCurrency(group.subtotals.pastYearTuition)}
-                            </td>
-                            <td className="py-1.5 px-1 text-right font-mono border-r border-slate-400">
-                              {formatCurrency(group.subtotals.pastYearAdmin)}
-                            </td>
-                            <td className="py-1.5 px-1 text-right font-mono border-r border-slate-400">
-                              {formatCurrency(group.subtotals.begQ1Tuition)}
-                            </td>
-                            <td className="py-1.5 px-1 text-right font-mono border-r border-slate-400">
-                              {formatCurrency(group.subtotals.begQ1Admin)}
-                            </td>
-                            <td className="py-1.5 px-1 text-right font-mono border-r border-slate-400">
-                              ${formatAmount(group.subtotals.begQ2Tuition)}
-                            </td>
-                            <td className="py-1.5 px-1 text-right font-mono border-r border-slate-400">
-                              ${formatAmount(group.subtotals.begQ2Admin)}
-                            </td>
-                            <td className="py-1.5 px-1 text-right font-mono border-r border-slate-400">
-                              ${formatAmount(group.subtotals.begQ3Tuition)}
-                            </td>
-                            <td className="py-1.5 px-1 text-right font-mono border-r border-slate-400">
-                              ${formatAmount(group.subtotals.begQ3Admin)}
-                            </td>
-                            <td className="py-1.5 px-1 text-right font-mono border-r border-slate-400">
-                              ${formatAmount(group.subtotals.begQ4Tuition)}
-                            </td>
-                            <td className="py-1.5 px-1 text-right font-mono border-r border-slate-400">
-                              ${formatAmount(group.subtotals.begQ4Admin)}
-                            </td>
-                            <td className="py-1.5 px-1 text-right font-mono border-r border-slate-400">
-                              ${formatAmount(group.subtotals.begNewYearTuition)}
-                            </td>
-                            <td className="py-1.5 px-1 text-right font-mono border-r border-slate-400">
-                              ${formatAmount(group.subtotals.begNewYearAdmin)}
-                            </td>
-                            <td colSpan={2} className="border-r border-slate-400 text-center">-</td>
-                            <td className="py-1.5 px-1 text-right font-mono border-r border-slate-400">
-                              ${formatAmount(group.subtotals.inst1Amount)}
-                            </td>
-                            <td colSpan={2} className="border-r border-slate-400 text-center">-</td>
-                            <td className="py-1.5 px-1 text-right font-mono border-r border-slate-400">
-                              ${formatAmount(group.subtotals.inst2Amount)}
-                            </td>
-                            <td className="py-1.5 px-1 text-right font-mono text-emerald-900 bg-emerald-200/80 border-r border-slate-400">
-                              ${formatAmount(group.subtotals.totPaidTuition)}
-                            </td>
-                            <td className="py-1.5 px-1 text-right font-mono text-emerald-900 bg-emerald-200/80 border-r border-slate-400">
-                              ${formatAmount(group.subtotals.totPaidAdmin)}
-                            </td>
-                            <td className="py-1.5 px-1 text-right font-mono text-red-900 bg-rose-200/80 border-r border-slate-400">
-                              ${formatAmount(group.subtotals.endTotalTuition)}
-                            </td>
-                            <td className="py-1.5 px-1 text-right font-mono text-red-900 bg-rose-200/80 border-r border-slate-400">
-                              ${formatAmount(group.subtotals.endTotalAdmin)}
-                            </td>
-                            <td className="py-1.5 px-1 text-center font-mono border-r border-slate-400">
-                              {group.subtotals.paymentCount}
-                            </td>
-                            <td className="py-1.5 px-1 text-right font-mono border-r border-slate-400">
-                              {formatCurrency(group.subtotals.endPastYearTuition)}
-                            </td>
-                            <td className="py-1.5 px-1 text-right font-mono border-r border-slate-400">
-                              {formatCurrency(group.subtotals.endPastYearAdmin)}
-                            </td>
-                            <td className="py-1.5 px-1 text-right font-mono border-r border-slate-400">
-                              {formatCurrency(group.subtotals.endQ1Tuition)}
-                            </td>
-                            <td className="py-1.5 px-1 text-right font-mono border-r border-slate-400">
-                              {formatCurrency(group.subtotals.endQ1Admin)}
-                            </td>
-                            <td className="py-1.5 px-1 text-right font-mono border-r border-slate-400">
-                              {formatCurrency(group.subtotals.endQ2Tuition)}
-                            </td>
-                            <td className="py-1.5 px-1 text-right font-mono border-r border-slate-400">
-                              {formatCurrency(group.subtotals.endQ2Admin)}
-                            </td>
-                            <td className="py-1.5 px-1 text-right font-mono border-r border-slate-400">
-                              ${formatAmount(group.subtotals.endQ3Tuition)}
-                            </td>
-                            <td className="py-1.5 px-1 text-right font-mono border-r border-slate-400">
-                              ${formatAmount(group.subtotals.endQ3Admin)}
-                            </td>
-                            <td className="py-1.5 px-1 text-right font-mono border-r border-slate-400">
-                              ${formatAmount(group.subtotals.endQ4Tuition)}
-                            </td>
-                            <td className="py-1.5 px-1 text-right font-mono border-r border-slate-400">
-                              ${formatAmount(group.subtotals.endQ4Admin)}
-                            </td>
-                            <td className="no-print"></td>
-                          </tr>
+                        {renderEnglishClassHeader(group.className, group)}
+                        {!isClassCollapsed && (
+                          <>
+                            {group.records.map((r, idx) => renderEnglishRow(r, idx))}
+                            {renderEnglishClassSubtotal(group)}
+                          </>
                         )}
                       </React.Fragment>
                     );
                   })
                 ) : (
-                  calculatedEnglishList.map((r) => {
-                    const hasPaid = r.calcTotalPaidTuition > 0 || r.calcTotalPaidAdmin > 0;
-
-                    return (
-                      <tr 
-                        key={r.id} 
-                        className={`hover:bg-amber-50/50 transition-colors ${
-                          hasPaid ? 'bg-emerald-50/20' : ''
-                        }`}
-                      >
-                        <td className="py-1 px-1 text-center font-mono border-r border-slate-300">{r.no}</td>
-                        <td className="py-1 px-1.5 font-mono font-medium text-slate-900 border-r border-slate-300">
-                          {r.studentCode}
-                        </td>
-                        <td className="py-1 px-2 font-khmer font-bold text-slate-900 border-r border-slate-300">
-                          {r.nameKhmer}
-                        </td>
-                        <td className="py-1 px-2 font-sans text-slate-700 border-r border-slate-300">
-                          {r.nameEnglish}
-                        </td>
-                        <td className="py-1 px-1 text-center font-mono border-r border-slate-300">{r.gender}</td>
-                        <td className="py-1 px-1.5 font-mono text-[8.5px] text-slate-600 border-r border-slate-300">{r.dob}</td>
-                        <td className="py-1 px-1 font-mono text-[8.5px] text-center border-r border-slate-300">{r.academicYear}</td>
-                        <td className="py-1 px-1.5 font-khmer text-center text-slate-600 border-r border-slate-300">{r.status}</td>
-                        
-                        {/* ថ្លៃឈ្នួលសិក្សា១ឆ្នាំ */}
-                        <td className="py-1 px-1.5 text-right font-mono font-medium border-r border-slate-300">
-                          {formatCurrency(r.fullTuition)}
-                        </td>
-
-                        {/* បញ្ចុះតម្លៃ ក្នុង១ឆ្នាំ (% & ការលើកទឹកចិត្ត) */}
-                        <td className="py-1 px-1 text-center font-mono text-slate-700 border-r border-slate-300">
-                          {r.discountPercent ? `${r.discountPercent}%` : '-'}
-                        </td>
-                        <td className="py-1 px-1 text-right font-mono text-slate-700 border-r border-slate-300">
-                          {formatCurrency(r.annualIncentive)}
-                        </td>
-
-                        {/* ការលើកទឹកចិត្ត */}
-                        <td className="py-1 px-1 text-right font-mono text-slate-700 border-r border-slate-300">
-                          {formatCurrency(r.incentive)}
-                        </td>
-
-                        {/* ទឹកប្រាក់ត្រូវបង់ (ថ្លៃឈ្នួលសិក្សា & ថ្លៃសេវារដ្ឋបាល) */}
-                        <td className="py-1 px-1.5 text-right font-mono font-bold text-slate-900 bg-amber-50/60 border-r border-slate-300">
-                          {formatCurrency(r.calcAmountPayableTuition)}
-                        </td>
-                        <td className="py-1 px-1.5 text-right font-mono font-medium text-slate-800 bg-amber-50/40 border-r border-slate-300">
-                          {formatCurrency(r.calcAmountPayableAdminFee)}
-                        </td>
-
-                        {/* ទឹកប្រាក់ជំពាក់ឆ្នាំសិក្សាចាស់ (ថ្លៃឈ្នួលសិក្សា & ថ្លៃសេវារដ្ឋបាល) */}
-                        <td className="py-1 px-1 text-right font-mono text-slate-500 border-r border-slate-300">
-                          {formatCurrency(r.calcPastYearTuition)}
-                        </td>
-                        <td className="py-1 px-1 text-right font-mono text-slate-500 border-r border-slate-300">
-                          {formatCurrency(r.calcPastYearAdmin)}
-                        </td>
-
-                        {/* ទឹកប្រាក់ជំពាក់ឆ្នាំថ្មី (Q1..Q4) */}
-                        <td className="py-1 px-1 text-right font-mono text-slate-600 border-r border-slate-300">
-                          {formatCurrency(r.calcBegQ1Tuition)}
-                        </td>
-                        <td className="py-1 px-1 text-right font-mono text-slate-500 border-r border-slate-300">
-                          {formatCurrency(r.calcBegQ1Admin)}
-                        </td>
-                        <td className="py-1 px-1 text-right font-mono text-slate-700 border-r border-slate-300">
-                          {formatCurrency(r.calcBegQ2Tuition)}
-                        </td>
-                        <td className="py-1 px-1 text-right font-mono text-slate-700 border-r border-slate-300">
-                          {formatCurrency(r.calcBegQ2Admin)}
-                        </td>
-                        <td className="py-1 px-1 text-right font-mono text-slate-700 border-r border-slate-300">
-                          {formatCurrency(r.calcBegQ3Tuition)}
-                        </td>
-                        <td className="py-1 px-1 text-right font-mono text-slate-700 border-r border-slate-300">
-                          {formatCurrency(r.calcBegQ3Admin)}
-                        </td>
-                        <td className="py-1 px-1 text-right font-mono text-slate-700 border-r border-slate-300">
-                          {formatCurrency(r.calcBegQ4Tuition)}
-                        </td>
-                        <td className="py-1 px-1 text-right font-mono text-slate-700 border-r border-slate-300">
-                          {formatCurrency(r.calcBegQ4Admin)}
-                        </td>
-
-                        {/* ទឹកប្រាក់ជំពាក់ដើមត្រាសរុបរួម */}
-                        <td className="py-1 px-1 text-right font-mono font-bold text-slate-900 border-r border-slate-300">
-                          {formatCurrency(r.calcBegTotalTuition)}
-                        </td>
-                        <td className="py-1 px-1 text-right font-mono font-bold text-slate-900 border-r border-slate-300">
-                          {formatCurrency(r.calcBegTotalAdmin)}
-                        </td>
-
-                        {/* ព័ត៌មានការបង់ប្រាក់លើកទី១ */}
-                        <td className="py-1 px-1 font-mono text-[8.5px] text-slate-600 border-r border-slate-300">
-                          {r.installment1?.date || '-'}
-                        </td>
-                        <td className="py-1 px-1 font-mono text-[8.5px] text-blue-700 border-r border-slate-300">
-                          {r.installment1?.invoiceNo || r.installment1?.invoiceNoTuition || '-'}
-                        </td>
-                        <td className="py-1 px-1 text-right font-mono font-medium text-emerald-700 border-r border-slate-300">
-                          {formatCurrency(r.calcInst1Amount)}
-                        </td>
-
-                        {/* ព័ត៌មានការបង់ប្រាក់លើកទី២ */}
-                        <td className="py-1 px-1 font-mono text-[8.5px] text-slate-600 border-r border-slate-300">
-                          {r.installment2?.date || '-'}
-                        </td>
-                        <td className="py-1 px-1 font-mono text-[8.5px] text-blue-700 border-r border-slate-300">
-                          {r.installment2?.invoiceNo || r.installment2?.invoiceNoAdmin || '-'}
-                        </td>
-                        <td className="py-1 px-1 text-right font-mono font-medium text-emerald-700 border-r border-slate-300">
-                          {formatCurrency(r.calcInst2Amount)}
-                        </td>
-
-                        {/* ទឹកប្រាក់បានបង់សរុប (ថ្លៃឈ្នួលសិក្សា & ថ្លៃសេវារដ្ឋបាល) */}
-                        <td className="py-1 px-1 text-right font-mono font-bold text-emerald-800 bg-emerald-50/50 border-r border-slate-300">
-                          {formatCurrency(r.calcTotalPaidTuition)}
-                        </td>
-                        <td className="py-1 px-1 text-right font-mono font-bold text-emerald-800 bg-emerald-50/50 border-r border-slate-300">
-                          {formatCurrency(r.calcTotalPaidAdmin)}
-                        </td>
-
-                        {/* ទឹកប្រាក់ជំពាក់ចុងត្រាសរុបរួម (ថ្លៃឈ្នួលសិក្សា, ថ្លៃសេវារដ្ឋបាល, ចំនួនដង) */}
-                        <td className="py-1 px-1 text-right font-mono font-bold text-slate-900 bg-rose-50/50 border-r border-slate-300">
-                          {formatCurrency(r.calcEndTotalTuition)}
-                        </td>
-                        <td className="py-1 px-1 text-right font-mono font-bold text-slate-900 bg-rose-50/50 border-r border-slate-300">
-                          {formatCurrency(r.calcEndTotalAdmin)}
-                        </td>
-                        <td className="py-1 px-1 text-center font-mono border-r border-slate-300">
-                          {r.calcPaymentCount}
-                        </td>
-
-                        {/* ទឹកប្រាក់ជំពាក់ចុងត្រាឆ្នាំសិក្សាចាស់ */}
-                        <td className="py-1 px-1 text-right font-mono text-slate-500 border-r border-slate-300">
-                          {formatCurrency(r.calcEndPastYearTuition)}
-                        </td>
-                        <td className="py-1 px-1 text-right font-mono text-slate-500 border-r border-slate-300">
-                          {formatCurrency(r.calcEndPastYearAdmin)}
-                        </td>
-
-                        {/* ទឹកប្រាក់ជំពាក់ចុងត្រាឆ្នាំថ្មី (Q1..Q4) */}
-                        <td className="py-1 px-1 text-right font-mono text-slate-700 border-r border-slate-300">
-                          {formatCurrency(r.calcEndQ1Tuition)}
-                        </td>
-                        <td className="py-1 px-1 text-right font-mono text-slate-500 border-r border-slate-300">
-                          {formatCurrency(r.calcEndQ1Admin)}
-                        </td>
-                        <td className="py-1 px-1 text-right font-mono text-slate-700 border-r border-slate-300">
-                          {formatCurrency(r.calcEndQ2Tuition)}
-                        </td>
-                        <td className="py-1 px-1 text-right font-mono text-slate-700 border-r border-slate-300">
-                          {formatCurrency(r.calcEndQ2Admin)}
-                        </td>
-                        <td className="py-1 px-1 text-right font-mono text-slate-700 border-r border-slate-300">
-                          {formatCurrency(r.calcEndQ3Tuition)}
-                        </td>
-                        <td className="py-1 px-1 text-right font-mono text-slate-700 border-r border-slate-300">
-                          {formatCurrency(r.calcEndQ3Admin)}
-                        </td>
-                        <td className="py-1 px-1 text-right font-mono text-slate-700 border-r border-slate-300">
-                          {formatCurrency(r.calcEndQ4Tuition)}
-                        </td>
-                        <td className="py-1 px-1 text-right font-mono text-slate-700 border-r border-slate-300">
-                          {formatCurrency(r.calcEndQ4Admin)}
-                        </td>
-
-                        {/* Actions */}
-                        <td className="no-print py-1 px-1.5 text-center">
-                          <button
-                            onClick={() => {
-                              const found = students.find(s => s.studentCode === r.studentCode);
-                              if (found) {
-                                setSelectedStudentId(found.id);
-                                setActiveTab('student-profile');
-                              }
-                            }}
-                            className="px-2 py-0.5 bg-blue-50 hover:bg-blue-100 text-blue-700 text-[9px] font-semibold rounded cursor-pointer transition-colors"
-                            title="មើលប្រវត្តិរូបសិស្ស"
-                          >
-                            Profile
-                          </button>
-                        </td>
-                      </tr>
-                    );
-                  })
+                  calculatedEnglishList.map((r, idx) => renderEnglishRow(r, idx))
                 )}
               </tbody>
 
@@ -2917,6 +3556,65 @@ export const DueReportsMatrix: React.FC = () => {
               >
                 <Check className="w-4 h-4" />
                 <span className="font-khmer">បិទផ្ទាំង (Done)</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Sync Summary Dialog Modal */}
+      {syncSummaryModal && (
+        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl max-w-md w-full shadow-2xl border border-slate-200 overflow-hidden animate-in fade-in zoom-in-95 duration-150">
+            <div className="p-4 bg-gradient-to-r from-blue-700 to-indigo-800 text-white flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <RefreshCw className="w-5 h-5 text-sky-300" />
+                <h3 className="font-bold text-sm font-khmer">សេចក្តីសង្ខេបការ Sync ទិន្នន័យសិស្ស</h3>
+              </div>
+              <button
+                onClick={() => setSyncSummaryModal(null)}
+                className="text-white/80 hover:text-white p-1 rounded-lg hover:bg-white/10 cursor-pointer transition-colors"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            
+            <div className="p-5 space-y-3.5 text-xs">
+              <p className="text-slate-600 font-khmer">
+                ប្រព័ន្ធបានធ្វើសមកាលកម្មទិន្នន័យរវាងបញ្ជីសិស្សទូទៅ (Central Directory) និងតារាងតាមដានបំណុល (Due Reports) រួចរាល់ដោយជោគជ័យ៖
+              </p>
+
+              <div className="grid grid-cols-2 gap-2.5">
+                <div className="p-3 bg-blue-50 border border-blue-200 rounded-xl">
+                  <span className="text-[10px] text-blue-600 font-khmer block">សិស្សសរុបបានត្រួតពិនិត្យ</span>
+                  <span className="text-lg font-bold font-mono text-blue-900">{syncSummaryModal.syncedCount}</span>
+                </div>
+                <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl">
+                  <span className="text-[10px] text-emerald-600 font-khmer block">បញ្ចូលក្នុងកម្មវិធីខ្មែរថ្មី</span>
+                  <span className="text-lg font-bold font-mono text-emerald-900">+{syncSummaryModal.newAddedKhmer}</span>
+                </div>
+                <div className="p-3 bg-sky-50 border border-sky-200 rounded-xl">
+                  <span className="text-[10px] text-sky-600 font-khmer block">បញ្ចូលក្នុងកម្មវិធីអង់គ្លេសថ្មី</span>
+                  <span className="text-lg font-bold font-mono text-sky-900">+{syncSummaryModal.newAddedEnglish}</span>
+                </div>
+                <div className="p-3 bg-purple-50 border border-purple-200 rounded-xl">
+                  <span className="text-[10px] text-purple-600 font-khmer block">ចុះឈ្មោះចូលបញ្ជីសិស្ស</span>
+                  <span className="text-lg font-bold font-mono text-purple-900">+{syncSummaryModal.newAddedToStudents}</span>
+                </div>
+              </div>
+
+              <div className="p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-[11px] text-slate-500 font-khmer">
+                💡 ព័ត៌មានប្រវត្តិរូបសិស្ស សាខា និងថ្នាក់ត្រូវបានផ្គូផ្គងដោយស្វ័យប្រវត្តិតាម Student ID (អត្តលេខ) និងឈ្មោះ។
+              </div>
+            </div>
+
+            <div className="p-3 bg-slate-100 border-t border-slate-200 flex justify-end">
+              <button
+                onClick={() => setSyncSummaryModal(null)}
+                className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded-xl cursor-pointer transition-colors font-khmer flex items-center gap-1.5"
+              >
+                <Check className="w-4 h-4" />
+                <span>យល់ព្រម (OK)</span>
               </button>
             </div>
           </div>

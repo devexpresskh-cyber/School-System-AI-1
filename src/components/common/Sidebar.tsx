@@ -104,6 +104,12 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onCloseMobile }) => {
       icon: <FileSpreadsheet className="w-5 h-5" />
     },
     {
+      id: 'sql-import',
+      labelEn: 'SQL Import & Analytics',
+      labelKm: 'នាំចូល & វិភាគ SQL តាមសាខា',
+      icon: <Database className="w-5 h-5 text-indigo-500" />
+    },
+    {
       id: 'backup-restore',
       labelEn: 'Backup & Restore',
       labelKm: 'បម្រុងទុក & ស្តារទិន្នន័យ',

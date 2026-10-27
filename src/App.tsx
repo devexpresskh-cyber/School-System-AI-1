@@ -13,6 +13,7 @@ import { ProductInventoryView } from './components/inventory/ProductInventoryVie
 import { AcademicPerformanceView } from './components/academic/AcademicPerformanceView';
 import { OfficialReportsView } from './components/reports/OfficialReportsView';
 import { ExcelImportView } from './components/excel/ExcelImportView';
+import { SqlImportAndAnalyticsView } from './components/sql/SqlImportAndAnalyticsView';
 import { SystemSettingsView } from './components/settings/SystemSettingsView';
 import { BackupRestoreView } from './components/settings/BackupRestoreView';
 import { StudentPromoteView } from './components/students/StudentPromoteView';
@@ -50,6 +51,8 @@ const MainLayout: React.FC = () => {
         return <OfficialReportsView />;
       case 'excel-import':
         return <ExcelImportView />;
+      case 'sql-import':
+        return <SqlImportAndAnalyticsView />;
       case 'settings':
         return <SystemSettingsView />;
       case 'backup-restore':
