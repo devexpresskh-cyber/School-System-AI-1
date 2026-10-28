@@ -192,6 +192,11 @@ interface SchoolContextType {
   paymentPeriods: PaymentPeriodConfig[];
   updatePaymentPeriods: (periods: PaymentPeriodConfig[]) => void;
   updatePaymentPeriod: (id: string, period: Partial<PaymentPeriodConfig>) => void;
+  syncBillingCyclesFromPaymentPeriods: () => {
+    syncedServicesCount: number;
+    syncedCategoriesCount: number;
+    message: string;
+  };
 
   // Invoice Number Generator
   getNextInvoiceNumber: (yearParam?: string | number) => string;
@@ -1689,6 +1694,98 @@ export const SchoolProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     }));
   };
 
+  // Synchronize Billing Cycles across Services & Fee Categories from Payment Periods
+  const syncBillingCyclesFromPaymentPeriods = (): {
+    syncedServicesCount: number;
+    syncedCategoriesCount: number;
+    message: string;
+  } => {
+    const activePeriods = paymentPeriods.filter(p => p.isActive !== false);
+
+    let syncedServicesCount = 0;
+    let syncedCategoriesCount = 0;
+
+    const findMatchingPeriod = (cycleStr: string, currentPeriodId?: string) => {
+      if (currentPeriodId) {
+        const found = paymentPeriods.find(p => p.id === currentPeriodId);
+        if (found) return found;
+      }
+      const lower = (cycleStr || '').trim().toLowerCase();
+      if (!lower) return null;
+
+      // Exact ID or Code match
+      const byCode = paymentPeriods.find(p => p.code.toLowerCase() === lower || p.id.toLowerCase() === lower);
+      if (byCode) return byCode;
+
+      // Direct name match
+      const byName = paymentPeriods.find(p => 
+        p.nameKhmer.toLowerCase() === lower || 
+        p.nameEnglish.toLowerCase() === lower ||
+        p.nameKhmer.toLowerCase().includes(lower) || 
+        p.nameEnglish.toLowerCase().includes(lower) ||
+        lower.includes(p.nameKhmer.toLowerCase()) ||
+        lower.includes(p.nameEnglish.toLowerCase())
+      );
+      if (byName) return byName;
+
+      // Semantic matching
+      if (lower.includes('1 month') || lower.includes('១ ខែ') || lower === 'monthly' || lower.includes('ប្រចាំខែ')) {
+        return paymentPeriods.find(p => p.code === '1_MONTH' || p.monthsCount === 1) || activePeriods[0];
+      }
+      if (lower.includes('2 month') || lower.includes('២ ខែ')) {
+        return paymentPeriods.find(p => p.code === '2_MONTHS' || p.monthsCount === 2) || activePeriods[0];
+      }
+      if (lower.includes('term') || lower.includes('quarter') || lower.includes('ត្រីមាស')) {
+        return paymentPeriods.find(p => p.code === 'QUARTER' || p.monthsCount === 3) || activePeriods[0];
+      }
+      if (lower.includes('semester 1') || lower.includes('ឆមាសទី ១') || lower.includes('ឆមាសទី១')) {
+        return paymentPeriods.find(p => p.code === 'SEMESTER_1' || (p.monthsCount === 5 && p.code.includes('1'))) || activePeriods[0];
+      }
+      if (lower.includes('semester 2') || lower.includes('ឆមាសទី ២') || lower.includes('ឆមាសទី២')) {
+        return paymentPeriods.find(p => p.code === 'SEMESTER_2' || (p.monthsCount === 5 && p.code.includes('2'))) || activePeriods[0];
+      }
+      if (lower.includes('semester') || lower.includes('ឆមាស')) {
+        return paymentPeriods.find(p => p.code.includes('SEMESTER') || p.monthsCount === 5) || activePeriods[0];
+      }
+      if (lower.includes('full year') || lower.includes('annual') || lower.includes('ពេញមួយឆ្នាំ') || lower.includes('ប្រចាំឆ្នាំ')) {
+        return paymentPeriods.find(p => p.code === 'FULL_YEAR' || p.monthsCount === 10) || activePeriods[0];
+      }
+      return null;
+    };
+
+    setServices(prev => prev.map(s => {
+      if (s.billingCycle === 'One-Time') return s;
+      const matched = findMatchingPeriod(s.billingCycle, s.paymentPeriodId);
+      if (matched) {
+        syncedServicesCount++;
+        return {
+          ...s,
+          paymentPeriodId: matched.id,
+          billingCycle: matched.nameKhmer
+        };
+      }
+      return s;
+    }));
+
+    const periodTermOptions = activePeriods.map(p => p.nameKhmer);
+    setFeeCategories(prev => prev.map(fc => {
+      const matched = findMatchingPeriod(fc.billingCycle || (fc.termOptions && fc.termOptions[0]) || '', fc.paymentPeriodId);
+      syncedCategoriesCount++;
+      return {
+        ...fc,
+        termOptions: periodTermOptions.length > 0 ? periodTermOptions : fc.termOptions,
+        billingCycle: matched ? matched.nameKhmer : (fc.billingCycle || activePeriods[0]?.nameKhmer || 'Term'),
+        paymentPeriodId: matched ? matched.id : fc.paymentPeriodId
+      };
+    }));
+
+    return {
+      syncedServicesCount,
+      syncedCategoriesCount,
+      message: `បានធ្វើសមកាលកម្មវដ្តបង់ប្រាក់ (${syncedServicesCount} សេវាកម្ម, ${syncedCategoriesCount} ប្រភេទចំណូល) ពី Payment Period ជោគជ័យ!`
+    };
+  };
+
   // Telegram Integration Actions
   const sendTelegramPaymentReceipt = async (paymentId: string): Promise<{ success: boolean; error?: string }> => {
     const cfg = settings.telegramConfig;
@@ -2076,6 +2173,7 @@ export const SchoolProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         paymentPeriods,
         updatePaymentPeriods,
         updatePaymentPeriod,
+        syncBillingCyclesFromPaymentPeriods,
         addBranch,
         updateBranch,
         deleteBranch,

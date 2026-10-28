@@ -29,7 +29,8 @@ import {
   Sparkles,
   FileText,
   BadgeCheck,
-  CheckCircle2
+  CheckCircle2,
+  RefreshCw
 } from 'lucide-react';
 import { ConfirmModal } from '../common/ConfirmModal';
 import * as XLSX from 'xlsx';
@@ -53,6 +54,8 @@ export const ProductInventoryView: React.FC = () => {
     deleteFeeCategory,
     branchStockMovements,
     addStockMovement,
+    paymentPeriods,
+    syncBillingCyclesFromPaymentPeriods,
     activeTab: contextTab
   } = useSchool();
 
@@ -102,6 +105,15 @@ export const ProductInventoryView: React.FC = () => {
     onConfirm: () => {}
   });
 
+  // Sync Billing Cycle Toast state
+  const [syncToast, setSyncToast] = useState<{ count: number; message: string } | null>(null);
+
+  const handleSyncBillingCycles = () => {
+    const res = syncBillingCyclesFromPaymentPeriods();
+    setSyncToast({ count: res.syncedServicesCount + res.syncedCategoriesCount, message: res.message });
+    setTimeout(() => setSyncToast(null), 5000);
+  };
+
   // Fee Category (ប្រភេទចំណូល) Modal & Configuration
   const [isFeeCategoryModalOpen, setIsFeeCategoryModalOpen] = useState(false);
   const [editingFeeCategory, setEditingFeeCategory] = useState<FeeCategory | null>(null);
@@ -115,6 +127,7 @@ export const ProductInventoryView: React.FC = () => {
   const [catClassGrade, setCatClassGrade] = useState<string>('All Classes (គ្រប់ថ្នាក់)');
   const [catProgramType, setCatProgramType] = useState<'all' | 'khmer' | 'english'>('all');
   const [catBillingCycle, setCatBillingCycle] = useState<string>('Term');
+  const [catPaymentPeriodId, setCatPaymentPeriodId] = useState<string>('');
   const [catAllowDiscount, setCatAllowDiscount] = useState(true);
   const [catStatus, setCatStatus] = useState<'active' | 'inactive'>('active');
 
@@ -137,7 +150,8 @@ export const ProductInventoryView: React.FC = () => {
   const [serviceNameEnglish, setServiceNameEnglish] = useState('');
   const [serviceCategory, setServiceCategory] = useState<ServiceItem['category']>('Tuition');
   const [serviceFeeUSD, setServiceFeeUSD] = useState<number>(150);
-  const [serviceBillingCycle, setServiceBillingCycle] = useState<ServiceItem['billingCycle']>('Term');
+  const [serviceBillingCycle, setServiceBillingCycle] = useState<string>('Term');
+  const [servicePaymentPeriodId, setServicePaymentPeriodId] = useState<string>('');
   const [serviceGrades, setServiceGrades] = useState('All Grades');
   const [serviceDescription, setServiceDescription] = useState('');
   const [serviceStatus, setServiceStatus] = useState<'active' | 'inactive'>('active');
@@ -253,12 +267,14 @@ export const ProductInventoryView: React.FC = () => {
   // Service Handlers
   const handleOpenAddService = () => {
     const nextNum = branchServices.length + 1;
+    const defaultPeriod = paymentPeriods.find(p => p.isActive !== false) || paymentPeriods[0];
     setServiceCode(`SRV-${String(nextNum).padStart(3, '0')}`);
     setServiceNameKhmer('');
     setServiceNameEnglish('');
     setServiceCategory('Tuition');
     setServiceFeeUSD(150);
-    setServiceBillingCycle('Term');
+    setServiceBillingCycle(defaultPeriod ? defaultPeriod.nameKhmer : 'Term');
+    setServicePaymentPeriodId(defaultPeriod?.id || '');
     setServiceGrades('All Grades (Pre-K to Grade 12)');
     setServiceDescription('');
     setServiceStatus('active');
@@ -274,6 +290,7 @@ export const ProductInventoryView: React.FC = () => {
     setServiceCategory(s.category);
     setServiceFeeUSD(s.feeUSD);
     setServiceBillingCycle(s.billingCycle);
+    setServicePaymentPeriodId(s.paymentPeriodId || '');
     setServiceGrades(s.applicableGrades.join(', '));
     setServiceDescription(s.description || '');
     setServiceStatus(s.status);
@@ -283,6 +300,13 @@ export const ProductInventoryView: React.FC = () => {
   const handleSaveService = (e: React.FormEvent) => {
     e.preventDefault();
     const gradeArr = serviceGrades.split(',').map(g => g.trim()).filter(Boolean);
+    const matchedPeriod = paymentPeriods.find(p => 
+      p.id === servicePaymentPeriodId ||
+      p.id === serviceBillingCycle || 
+      p.nameKhmer === serviceBillingCycle || 
+      p.nameEnglish === serviceBillingCycle ||
+      p.code === serviceBillingCycle
+    );
 
     if (editingService) {
       updateService(editingService.id, {
@@ -292,6 +316,7 @@ export const ProductInventoryView: React.FC = () => {
         category: serviceCategory,
         feeUSD: serviceFeeUSD,
         billingCycle: serviceBillingCycle,
+        paymentPeriodId: matchedPeriod ? matchedPeriod.id : undefined,
         applicableGrades: gradeArr.length > 0 ? gradeArr : ['All Grades'],
         description: serviceDescription,
         status: serviceStatus
@@ -304,6 +329,7 @@ export const ProductInventoryView: React.FC = () => {
         category: serviceCategory,
         feeUSD: serviceFeeUSD,
         billingCycle: serviceBillingCycle,
+        paymentPeriodId: matchedPeriod ? matchedPeriod.id : undefined,
         applicableGrades: gradeArr.length > 0 ? gradeArr : ['All Grades'],
         description: serviceDescription,
         status: serviceStatus,
@@ -353,6 +379,7 @@ export const ProductInventoryView: React.FC = () => {
   // Fee Category Handlers
   const handleOpenAddCategory = () => {
     setEditingFeeCategory(null);
+    const defaultPeriod = paymentPeriods.find(p => p.isActive !== false) || paymentPeriods[0];
     setCatCode(`REV-${String(feeCategories.length + 1).padStart(2, '0')}`);
     setCatNameKhmer('');
     setCatNameEnglish('');
@@ -362,7 +389,8 @@ export const ProductInventoryView: React.FC = () => {
     setCatAcademicYear(settings.activeAcademicYear || '2025-2026');
     setCatClassGrade('All Classes (គ្រប់ថ្នាក់)');
     setCatProgramType('khmer');
-    setCatBillingCycle('Term');
+    setCatBillingCycle(defaultPeriod ? defaultPeriod.nameKhmer : 'Term');
+    setCatPaymentPeriodId(defaultPeriod?.id || '');
     setCatAllowDiscount(true);
     setCatStatus('active');
     setIsFeeCategoryModalOpen(true);
@@ -379,7 +407,8 @@ export const ProductInventoryView: React.FC = () => {
     setCatAcademicYear(fc.academicYear || settings.activeAcademicYear || '2025-2026');
     setCatClassGrade(fc.classGrade || 'All Classes (គ្រប់ថ្នាក់)');
     setCatProgramType(fc.programType || 'all');
-    setCatBillingCycle(fc.termOptions?.includes('Term') || fc.termOptions?.some(t => t.includes('Term')) ? 'Term' : 'Monthly');
+    setCatBillingCycle(fc.billingCycle || (fc.termOptions?.includes('Term') || fc.termOptions?.some(t => t.includes('Term')) ? 'Term' : 'Monthly'));
+    setCatPaymentPeriodId(fc.paymentPeriodId || '');
     setCatAllowDiscount(fc.allowDiscount);
     setCatStatus(fc.status);
     setIsFeeCategoryModalOpen(true);
@@ -388,9 +417,18 @@ export const ProductInventoryView: React.FC = () => {
   const handleSaveFeeCategory = (e: React.FormEvent) => {
     e.preventDefault();
     const gradeArr = catClassGrade !== 'All Classes (គ្រប់ថ្នាក់)' ? [catClassGrade] : ['All Classes (គ្រប់ថ្នាក់)'];
-    const termOpts = catProgramType === 'english' || catBillingCycle === 'Term'
-      ? ['Term 1 (ត្រីមាសទី១)', 'Term 2 (ត្រីមាសទី២)', 'Term 3 (ត្រីមាសទី៣)', 'Term 4 (ត្រីមាសទី៤)', 'Term (បង់ជា Term)', 'ប្រចាំឆមាស', 'ប្រចាំឆ្នាំ']
-      : ['ត្រីមាសទី១', 'ត្រីមាសទី២', 'ត្រីមាសទី៣', 'ត្រីមាសទី៤', 'ឆមាសទី១', 'ឆមាសទី២', 'ពេញមួយឆ្នាំ'];
+    const activePeriodNames = paymentPeriods.filter(p => p.isActive !== false).map(p => p.nameKhmer);
+    const matchedPeriod = paymentPeriods.find(p => 
+      p.id === catPaymentPeriodId ||
+      p.id === catBillingCycle || 
+      p.nameKhmer === catBillingCycle || 
+      p.nameEnglish === catBillingCycle ||
+      p.code === catBillingCycle
+    );
+
+    const termOpts = catProgramType === 'english'
+      ? ['Term 1 (ត្រីមាសទី១)', 'Term 2 (ត្រីមាសទី២)', 'Term 3 (ត្រីមាសទី៣)', 'Term 4 (ត្រីមាសទី៤)', 'Term (បង់ជា Term)', ...activePeriodNames]
+      : (activePeriodNames.length > 0 ? activePeriodNames : ['ត្រីមាសទី១', 'ត្រីមាសទី២', 'ត្រីមាសទី៣', 'ត្រីមាសទី៤', 'ឆមាសទី១', 'ឆមាសទី២', 'ពេញមួយឆ្នាំ']);
 
     if (editingFeeCategory) {
       updateFeeCategory(editingFeeCategory.id, {
@@ -404,6 +442,8 @@ export const ProductInventoryView: React.FC = () => {
         programType: catProgramType,
         applicableGrades: gradeArr,
         termOptions: termOpts,
+        billingCycle: catBillingCycle,
+        paymentPeriodId: matchedPeriod ? matchedPeriod.id : undefined,
         allowDiscount: catAllowDiscount,
         status: catStatus
       });
@@ -418,6 +458,8 @@ export const ProductInventoryView: React.FC = () => {
         classGrade: catClassGrade,
         programType: catProgramType,
         termOptions: termOpts,
+        billingCycle: catBillingCycle,
+        paymentPeriodId: matchedPeriod ? matchedPeriod.id : undefined,
         applicableGrades: gradeArr,
         allowDiscount: catAllowDiscount,
         status: catStatus

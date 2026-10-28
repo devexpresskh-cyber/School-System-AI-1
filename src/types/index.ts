@@ -225,11 +225,12 @@ export interface ServiceItem {
   nameEnglish: string;
   category: 'Tuition' | 'Transport' | 'Cafeteria' | 'Registration' | 'Activity' | 'Exam' | 'Other';
   feeUSD: number;
-  billingCycle: 'Monthly' | 'Term' | 'Semester' | 'Annual' | 'One-Time';
+  billingCycle: 'Monthly' | 'Term' | 'Semester' | 'Annual' | 'One-Time' | string;
   applicableGrades: string[];
   description?: string;
   status: 'active' | 'inactive';
   branchId: string;
+  paymentPeriodId?: string;
 }
 
 export interface StockMovement {
@@ -262,6 +263,8 @@ export interface FeeCategory {
   academicYear?: string; // e.g. "2024-2025", "2025-2026", "2026-2027", or "All Years"
   classGrade?: string; // e.g. "ថ្នាក់ទី ៧", "Grade 10", "Level 1", "All Classes"
   programType?: 'all' | 'khmer' | 'english';
+  billingCycle?: string;
+  paymentPeriodId?: string;
 }
 
 export interface ExpenseRecord {
