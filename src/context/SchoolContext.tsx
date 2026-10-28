@@ -16,7 +16,8 @@ import {
   StockMovement,
   UserPermissions,
   PromotionRecord,
-  SemesterDateConfig
+  SemesterDateConfig,
+  PaymentPeriodConfig
 } from '../types';
 import { KhmerDueRecord, EnglishDueRecord } from '../types/dueReport';
 import { 
@@ -29,6 +30,7 @@ import {
   INITIAL_ACADEMIC_RECORDS, 
   INITIAL_SETTINGS, 
   DEFAULT_SEMESTER_CONFIGS,
+  DEFAULT_PAYMENT_PERIODS,
   INITIAL_EXPENSES,
   INITIAL_CALL_NOTES,
   INITIAL_FEE_CATEGORIES,
@@ -186,12 +188,19 @@ interface SchoolContextType {
   addBranch: (b: Omit<Branch, 'id'>) => Branch;
   updateBranch: (id: string, b: Partial<Branch>) => void;
   deleteBranch: (id: string) => boolean;
-  getNextInvoiceNumber: (year?: string | number) => string;
+  // Payment Period Configuration
+  paymentPeriods: PaymentPeriodConfig[];
+  updatePaymentPeriods: (periods: PaymentPeriodConfig[]) => void;
+  updatePaymentPeriod: (id: string, period: Partial<PaymentPeriodConfig>) => void;
 
-  // Backup & Restore
+  // Invoice Number Generator
+  getNextInvoiceNumber: (yearParam?: string | number) => string;
+
+  // Backup, Restore & Data Reset
   createBackupJson: () => string;
   restoreFromBackupJson: (jsonString: string) => boolean;
   resetToDefaults: () => void;
+  clearAllDataKeepSettings: () => void;
 
   // Telegram Integration
   sendTelegramPaymentReceipt: (paymentId: string) => Promise<{ success: boolean; error?: string }>;
@@ -323,27 +332,33 @@ export const SchoolProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const [targetPaymentStudent, setTargetPaymentStudent] = useState<Student | null>(null);
 
   const [students, setStudents] = useState<Student[]>(() => {
-    const unifiedInitial = getInitialUnifiedStudents();
+    const isCleared = localStorage.getItem('fbis_data_cleared') === 'true';
     const saved = localStorage.getItem(`${STORAGE_KEY}_students`);
     if (saved) {
       try {
         const parsed = JSON.parse(saved) as Student[];
-        const existingCodes = new Set(parsed.map(s => (s.studentCode || '').toLowerCase()));
-        const missingFromSaved = unifiedInitial.filter(s => !existingCodes.has((s.studentCode || '').toLowerCase()));
-        if (missingFromSaved.length > 0) {
-          return [...parsed, ...missingFromSaved];
-        }
-        return parsed;
+        if (isCleared && parsed.length === 0) return [];
+        if (parsed.length > 0) return parsed;
       } catch (e) {
         console.error('Failed to parse saved students:', e);
       }
     }
-    return unifiedInitial;
+    if (isCleared) return [];
+    return getInitialUnifiedStudents();
   });
 
   const [callNotes, setCallNotes] = useState<CallNote[]>(() => {
+    const isCleared = localStorage.getItem('fbis_data_cleared') === 'true';
     const saved = localStorage.getItem(`${STORAGE_KEY}_callNotes`);
-    return saved ? JSON.parse(saved) : INITIAL_CALL_NOTES;
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        if (isCleared && parsed.length === 0) return [];
+        return parsed;
+      } catch (e) {}
+    }
+    if (isCleared) return [];
+    return INITIAL_CALL_NOTES;
   });
 
   const [feeCategories, setFeeCategories] = useState<FeeCategory[]>(() => {
@@ -352,13 +367,31 @@ export const SchoolProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   });
 
   const [stockMovements, setStockMovements] = useState<StockMovement[]>(() => {
+    const isCleared = localStorage.getItem('fbis_data_cleared') === 'true';
     const saved = localStorage.getItem(`${STORAGE_KEY}_stockMovements`);
-    return saved ? JSON.parse(saved) : INITIAL_STOCK_MOVEMENTS;
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        if (isCleared && parsed.length === 0) return [];
+        return parsed;
+      } catch (e) {}
+    }
+    if (isCleared) return [];
+    return INITIAL_STOCK_MOVEMENTS;
   });
 
   const [payments, setPayments] = useState<PaymentInvoice[]>(() => {
+    const isCleared = localStorage.getItem('fbis_data_cleared') === 'true';
     const saved = localStorage.getItem(`${STORAGE_KEY}_payments`);
-    return saved ? JSON.parse(saved) : INITIAL_PAYMENTS;
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        if (isCleared && parsed.length === 0) return [];
+        return parsed;
+      } catch (e) {}
+    }
+    if (isCleared) return [];
+    return INITIAL_PAYMENTS;
   });
 
   const [products, setProducts] = useState<ProductItem[]>(() => {
@@ -372,34 +405,74 @@ export const SchoolProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   });
 
   const [academicRecords, setAcademicRecords] = useState<AcademicRecord[]>(() => {
+    const isCleared = localStorage.getItem('fbis_data_cleared') === 'true';
     const saved = localStorage.getItem(`${STORAGE_KEY}_academicRecords`);
-    return saved ? JSON.parse(saved) : INITIAL_ACADEMIC_RECORDS;
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        if (isCleared && parsed.length === 0) return [];
+        return parsed;
+      } catch (e) {}
+    }
+    if (isCleared) return [];
+    return INITIAL_ACADEMIC_RECORDS;
   });
 
   const [expenses, setExpenses] = useState<ExpenseRecord[]>(() => {
+    const isCleared = localStorage.getItem('fbis_data_cleared') === 'true';
     const saved = localStorage.getItem(`${STORAGE_KEY}_expenses`);
-    return saved ? JSON.parse(saved) : INITIAL_EXPENSES;
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        if (isCleared && parsed.length === 0) return [];
+        return parsed;
+      } catch (e) {}
+    }
+    if (isCleared) return [];
+    return INITIAL_EXPENSES;
   });
 
   const [khmerDueRecords, setKhmerDueRecords] = useState<KhmerDueRecord[]>(() => {
+    const isCleared = localStorage.getItem('fbis_data_cleared') === 'true';
     const saved = localStorage.getItem(`${STORAGE_KEY}_khmer_due`);
-    return saved ? JSON.parse(saved) : INITIAL_KHMER_DUE_RECORDS;
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        if (isCleared && parsed.length === 0) return [];
+        return parsed;
+      } catch (e) {}
+    }
+    if (isCleared) return [];
+    return INITIAL_KHMER_DUE_RECORDS;
   });
 
   const [englishDueRecords, setEnglishDueRecords] = useState<EnglishDueRecord[]>(() => {
+    const isCleared = localStorage.getItem('fbis_data_cleared') === 'true';
     const saved = localStorage.getItem(`${STORAGE_KEY}_english_due`);
-    return saved ? JSON.parse(saved) : INITIAL_ENGLISH_DUE_RECORDS;
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        if (isCleared && parsed.length === 0) return [];
+        return parsed;
+      } catch (e) {}
+    }
+    if (isCleared) return [];
+    return INITIAL_ENGLISH_DUE_RECORDS;
   });
 
   const [promotions, setPromotions] = useState<PromotionRecord[]>(() => {
+    const isCleared = localStorage.getItem('fbis_data_cleared') === 'true';
     const saved = localStorage.getItem(`${STORAGE_KEY}_promotions`);
     if (saved) {
       try {
-        return JSON.parse(saved);
+        const parsed = JSON.parse(saved);
+        if (isCleared && parsed.length === 0) return [];
+        return parsed;
       } catch (e) {
         console.error('Failed to parse promotions:', e);
       }
     }
+    if (isCleared) return [];
     return [
       {
         id: 'promo-1',
@@ -427,6 +500,9 @@ export const SchoolProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         return {
           ...INITIAL_SETTINGS,
           ...parsed,
+          paymentPeriods: parsed.paymentPeriods && parsed.paymentPeriods.length > 0
+            ? parsed.paymentPeriods
+            : DEFAULT_PAYMENT_PERIODS,
           semesterConfigs: {
             ...DEFAULT_SEMESTER_CONFIGS,
             ...(parsed.semesterConfigs || {})
@@ -1186,17 +1262,52 @@ export const SchoolProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   };
 
   // Synchronization between Central Student Directory and Due Reports
+  // 1. Prunes dummy/sample students not in the student database
+  // 2. Automatically collects old year payments & past debt into Due Reports
+  // 3. Syncs updated records with clean sequential numbering
   const syncDueReportWithStudents = () => {
     let syncedCount = 0;
     let newAddedKhmer = 0;
     let newAddedEnglish = 0;
-    let newAddedToStudents = 0;
+    let removedSampleCount = 0;
 
-    const updatedKhmer = [...khmerDueRecords];
-    const updatedEnglish = [...englishDueRecords];
-    const updatedStudentsList = [...students];
+    if (students.length === 0) {
+      setKhmerDueRecords([]);
+      setEnglishDueRecords([]);
+      return {
+        syncedCount: 0,
+        newAddedKhmer: 0,
+        newAddedEnglish: 0,
+        newAddedToStudents: 0
+      };
+    }
 
-    // 1. Sync from students into Due Reports
+    // Helper to check if a student code or name matches any real student in DB
+    const findRealStudent = (code: string, nameKh: string) => {
+      return students.find(s => 
+        (s.studentCode && s.studentCode.toLowerCase() === (code || '').toLowerCase()) ||
+        (s.roll && s.roll.toLowerCase() === (code || '').toLowerCase()) ||
+        (s.nameKhmer && s.nameKhmer.trim() === (nameKh || '').trim())
+      );
+    };
+
+    // Filter out dummy/sample records that have no counterpart in the student registry
+    const validKhmer = khmerDueRecords.filter(k => {
+      const match = findRealStudent(k.studentCode, k.nameKhmer);
+      if (!match) removedSampleCount++;
+      return !!match;
+    });
+
+    const validEnglish = englishDueRecords.filter(e => {
+      const match = findRealStudent(e.studentCode, e.nameKhmer);
+      if (!match) removedSampleCount++;
+      return !!match;
+    });
+
+    const updatedKhmer: KhmerDueRecord[] = [...validKhmer];
+    const updatedEnglish: EnglishDueRecord[] = [...validEnglish];
+
+    // For each registered student, sync or insert their due report and collect old year payment
     students.forEach(s => {
       syncedCount++;
       const isEnglish = 
@@ -1210,28 +1321,34 @@ export const SchoolProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       const sCode = s.studentCode || s.roll || s.id;
       const khmerGender = (s.gender === 'Female' || (s.gender as any) === 'F') ? 'ស្រី' : 'ប្រុស';
 
+      // Auto-collect old year payment / debt for this student
+      // Sum student pastYearDue plus any unpaid balances from prior year payments (runningYear < 2026 or past debt)
+      const studentPayments = payments.filter(p => 
+        p.studentId === s.id || 
+        (p.studentCode && p.studentCode.toLowerCase() === sCode.toLowerCase())
+      );
+      
+      const priorYearPayments = studentPayments.filter(p => 
+        (p.runningYear && p.runningYear < 2026) || 
+        (p.academicYear && p.academicYear !== settings.activeAcademicYear && !p.academicYear.includes('2026')) ||
+        (p.title && (p.title.includes('ឆ្នាំចាស់') || p.title.toLowerCase().includes('past') || p.title.toLowerCase().includes('debt')))
+      );
+      
+      const priorUnpaidSum = priorYearPayments.reduce((acc, p) => acc + (p.owedRemain || 0), 0);
+      const collectedOldYearDebt = Math.max(s.pastYearDue || 0, priorUnpaidSum > 0 ? priorUnpaidSum : (s.pastYearDue || 0));
+
       if (isEnglish) {
-        // Check if exists in English Due
         const existingIdx = updatedEnglish.findIndex(e => 
-          e.studentCode === sCode || 
-          e.studentCode === s.studentCode || 
-          (s.roll && e.studentCode === s.roll) ||
+          e.studentCode.toLowerCase() === sCode.toLowerCase() || 
+          (s.studentCode && e.studentCode.toLowerCase() === s.studentCode.toLowerCase()) || 
+          (s.roll && e.studentCode.toLowerCase() === s.roll.toLowerCase()) ||
           e.nameKhmer.trim() === s.nameKhmer.trim()
         );
 
-        if (existingIdx >= 0) {
-          // Sync Last Year Owed (pastYearDue)
-          let ePastTuition = updatedEnglish[existingIdx].pastYearDue?.tuition || 0;
-          let ePastAdmin = updatedEnglish[existingIdx].pastYearDue?.adminFee || 0;
-          if (s.pastYearDue !== undefined || s.pastYearTuition !== undefined) {
-            ePastTuition = s.pastYearTuition ?? (s.pastYearDue || 0);
-            ePastAdmin = s.pastYearAdmin ?? 0;
-          } else if (ePastTuition > 0 || ePastAdmin > 0) {
-            s.pastYearDue = ePastTuition + ePastAdmin;
-            s.pastYearTuition = ePastTuition;
-            s.pastYearAdmin = ePastAdmin;
-          }
+        const pTuition = s.pastYearTuition ?? collectedOldYearDebt;
+        const pAdmin = s.pastYearAdmin ?? 0;
 
+        if (existingIdx >= 0) {
           updatedEnglish[existingIdx] = {
             ...updatedEnglish[existingIdx],
             nameKhmer: s.nameKhmer || updatedEnglish[existingIdx].nameKhmer,
@@ -1241,17 +1358,14 @@ export const SchoolProvider: React.FC<{ children: React.ReactNode }> = ({ childr
             branchId: s.branchId || updatedEnglish[existingIdx].branchId || 'fbis-02',
             className: s.classGrade || updatedEnglish[existingIdx].className,
             status: s.status === 'active' ? 'កំពុងសិក្សា' : updatedEnglish[existingIdx].status,
-            pastYearDue: { tuition: ePastTuition, adminFee: ePastAdmin }
+            pastYearDue: { tuition: pTuition, adminFee: pAdmin }
           };
         } else {
-          // Add new English due record
           newAddedEnglish++;
           const tuition = s.tuitionFee || 640;
           const disc = s.discountPercentage || 0;
           const qTuition = Number(((tuition * (1 - disc / 100)) / 4).toFixed(2));
           const qAdmin = 25;
-          const pTuition = s.pastYearTuition ?? (s.pastYearDue || 0);
-          const pAdmin = s.pastYearAdmin ?? 0;
           const newRec: EnglishDueRecord = {
             id: `edue-sync-${s.id}-${Date.now()}`,
             no: updatedEnglish.length + 1,
@@ -1261,7 +1375,7 @@ export const SchoolProvider: React.FC<{ children: React.ReactNode }> = ({ childr
             className: s.classGrade || 'ថ្នាក់ K1',
             gender: s.gender === 'Female' ? 'F' : 'M',
             dob: s.birthday || '2020-01-01',
-            academicYear: s.academicYear || '2025-2026',
+            academicYear: s.academicYear || settings.activeAcademicYear || '2025-2026',
             status: 'កំពុងសិក្សា',
             fullTuition: tuition,
             discountPercent: disc,
@@ -1292,21 +1406,13 @@ export const SchoolProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       } else {
         // Khmer Program
         const existingIdx = updatedKhmer.findIndex(k => 
-          k.studentCode === sCode || 
-          k.studentCode === s.studentCode || 
-          (s.roll && k.studentCode === s.roll) ||
+          k.studentCode.toLowerCase() === sCode.toLowerCase() || 
+          (s.studentCode && k.studentCode.toLowerCase() === s.studentCode.toLowerCase()) || 
+          (s.roll && k.studentCode.toLowerCase() === s.roll.toLowerCase()) ||
           k.nameKhmer.trim() === s.nameKhmer.trim()
         );
 
         if (existingIdx >= 0) {
-          // Sync Last Year Owed (pastYearDue)
-          let kPastDue = updatedKhmer[existingIdx].pastYearDue || 0;
-          if (s.pastYearDue !== undefined) {
-            kPastDue = s.pastYearDue;
-          } else if (kPastDue > 0) {
-            s.pastYearDue = kPastDue;
-          }
-
           updatedKhmer[existingIdx] = {
             ...updatedKhmer[existingIdx],
             nameKhmer: s.nameKhmer || updatedKhmer[existingIdx].nameKhmer,
@@ -1316,15 +1422,13 @@ export const SchoolProvider: React.FC<{ children: React.ReactNode }> = ({ childr
             branchId: s.branchId || updatedKhmer[existingIdx].branchId || 'fbis-02',
             className: s.classGrade || updatedKhmer[existingIdx].className,
             status: s.status === 'active' ? 'កំពុងសិក្សា' : updatedKhmer[existingIdx].status,
-            pastYearDue: kPastDue
+            pastYearDue: collectedOldYearDebt
           };
         } else {
-          // Add new Khmer due record
           newAddedKhmer++;
           const tuition = s.tuitionFee || 981;
           const disc = s.discountPercentage || 0;
           const semTuition = Number(((tuition * (1 - disc / 100)) / 4).toFixed(2));
-          const pastDue = s.pastYearDue || 0;
           const newRec: KhmerDueRecord = {
             id: `kdue-sync-${s.id}-${Date.now()}`,
             no: updatedKhmer.length + 1,
@@ -1334,18 +1438,18 @@ export const SchoolProvider: React.FC<{ children: React.ReactNode }> = ({ childr
             className: s.classGrade || 'ថ្នាក់ទី ៧',
             gender: khmerGender,
             dob: s.birthday || '2013-01-01',
-            academicYear: s.academicYear || '2025-2026',
+            academicYear: s.academicYear || settings.activeAcademicYear || '2025-2026',
             status: 'កំពុងសិក្សា',
             fullTuition: tuition,
             discountPercent: disc,
             discountAmount: 0,
             incentive: 0,
             amountPayable: Number((tuition * (1 - disc / 100)).toFixed(2)),
-            pastYearDue: pastDue,
+            pastYearDue: collectedOldYearDebt,
             newYearSem1: 0,
             newYearSem2: semTuition,
-            beginningBalanceDue: pastDue + semTuition,
-            endingDue: { semester1: 0, semester2: semTuition, pastYear: pastDue, total: pastDue + semTuition },
+            beginningBalanceDue: collectedOldYearDebt + semTuition,
+            endingDue: { semester1: 0, semester2: semTuition, pastYear: collectedOldYearDebt, total: collectedOldYearDebt + semTuition },
             branchId: s.branchId || 'fbis-02'
           };
           updatedKhmer.push(newRec);
@@ -1353,92 +1457,18 @@ export const SchoolProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       }
     });
 
-    // 2. Also register missing students from Due Records into Central Students Directory
-    updatedKhmer.forEach(k => {
-      const found = updatedStudentsList.some(s => 
-        s.studentCode === k.studentCode || 
-        s.roll === k.studentCode || 
-        s.nameKhmer.trim() === k.nameKhmer.trim()
-      );
-      if (!found) {
-        newAddedToStudents++;
-        updatedStudentsList.push({
-          id: `std-from-kdue-${k.studentCode}-${Date.now()}`,
-          studentCode: k.studentCode,
-          nameKhmer: k.nameKhmer,
-          nameEnglish: k.nameEnglish,
-          username: k.studentCode.toLowerCase(),
-          roll: k.studentCode.replace(/\D/g, '') || k.studentCode,
-          classGrade: k.className || 'ថ្នាក់ទី ៧',
-          gender: (k.gender === 'ស្រី' || (k.gender as any) === 'F') ? 'Female' : 'Male',
-          birthday: k.dob || '2013-01-01',
-          phone: '077 473 545',
-          guardianPhone: '077 473 545',
-          address: 'ខេត្តសៀមរាប',
-          parentName: 'អាណាព្យាបាលសិស្ស',
-          avatar: `https://images.unsplash.com/photo-1544717305-2782549b5136?w=150&auto=format&fit=crop&q=80`,
-          status: 'active',
-          registrationDate: '2025-10-01',
-          enrollmentDate: '2025-10-01',
-          branchId: k.branchId || 'fbis-02',
-          curriculum: 'khmer',
-          academicYear: k.academicYear || '2025-2026',
-          tuitionFee: k.fullTuition || 981,
-          discountPercentage: k.discountPercent || 0,
-          pastYearDue: k.pastYearDue || 0,
-          pastYearTuition: k.pastYearDue || 0,
-          pastYearAdmin: 0
-        });
-      }
-    });
+    // Re-number sequentially
+    const renumberedKhmer = updatedKhmer.map((item, idx) => ({ ...item, no: idx + 1 }));
+    const renumberedEnglish = updatedEnglish.map((item, idx) => ({ ...item, no: idx + 1 }));
 
-    updatedEnglish.forEach(e => {
-      const found = updatedStudentsList.some(s => 
-        s.studentCode === e.studentCode || 
-        s.roll === e.studentCode || 
-        s.nameKhmer.trim() === e.nameKhmer.trim()
-      );
-      if (!found) {
-        newAddedToStudents++;
-        updatedStudentsList.push({
-          id: `std-from-edue-${e.studentCode}-${Date.now()}`,
-          studentCode: e.studentCode,
-          nameKhmer: e.nameKhmer,
-          nameEnglish: e.nameEnglish,
-          username: e.studentCode.toLowerCase(),
-          roll: e.studentCode.replace(/\D/g, '') || e.studentCode,
-          classGrade: e.className || 'ថ្នាក់ K1',
-          gender: (e.gender === 'F' || e.gender === 'ស្រី' || (e.gender as any) === 'ស') ? 'Female' : 'Male',
-          birthday: e.dob || '2020-01-01',
-          phone: '077 473 545',
-          guardianPhone: '077 473 545',
-          address: 'ខេត្តសៀមរាប',
-          parentName: 'អាណាព្យាបាលសិស្ស',
-          avatar: `https://images.unsplash.com/photo-1544717305-2782549b5136?w=150&auto=format&fit=crop&q=80`,
-          status: 'active',
-          registrationDate: '2025-10-01',
-          enrollmentDate: '2025-10-01',
-          branchId: e.branchId || 'fbis-02',
-          curriculum: 'english',
-          academicYear: e.academicYear || '2025-2026',
-          tuitionFee: e.fullTuition || 640,
-          discountPercentage: e.discountPercent || 0,
-          pastYearDue: (e.pastYearDue?.tuition || 0) + (e.pastYearDue?.adminFee || 0),
-          pastYearTuition: e.pastYearDue?.tuition || 0,
-          pastYearAdmin: e.pastYearDue?.adminFee || 0
-        });
-      }
-    });
-
-    setKhmerDueRecords(updatedKhmer);
-    setEnglishDueRecords(updatedEnglish);
-    setStudents(updatedStudentsList);
+    setKhmerDueRecords(renumberedKhmer);
+    setEnglishDueRecords(renumberedEnglish);
 
     return {
       syncedCount,
       newAddedKhmer,
       newAddedEnglish,
-      newAddedToStudents
+      newAddedToStudents: 0
     };
   };
 
@@ -1599,10 +1629,11 @@ export const SchoolProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   };
 
   const resetToDefaults = () => {
+    localStorage.removeItem('fbis_data_cleared');
     setBranches(INITIAL_BRANCHES);
     setCurrentBranchId('fbis-02');
     setUsers(INITIAL_USERS);
-    setStudents(INITIAL_STUDENTS);
+    setStudents(getInitialUnifiedStudents());
     setCallNotes(INITIAL_CALL_NOTES);
     setFeeCategories(INITIAL_FEE_CATEGORIES);
     setStockMovements(INITIAL_STOCK_MOVEMENTS);
@@ -1614,6 +1645,48 @@ export const SchoolProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     setKhmerDueRecords(INITIAL_KHMER_DUE_RECORDS);
     setEnglishDueRecords(INITIAL_ENGLISH_DUE_RECORDS);
     setSettings(INITIAL_SETTINGS);
+  };
+
+  // Clear all transaction & student data while strictly keeping system settings and configurations
+  const clearAllDataKeepSettings = () => {
+    localStorage.setItem('fbis_data_cleared', 'true');
+    setStudents([]);
+    setPayments([]);
+    setKhmerDueRecords([]);
+    setEnglishDueRecords([]);
+    setExpenses([]);
+    setAcademicRecords([]);
+    setCallNotes([]);
+    setStockMovements([]);
+    setPromotions([]);
+
+    localStorage.setItem(`${STORAGE_KEY}_students`, JSON.stringify([]));
+    localStorage.setItem(`${STORAGE_KEY}_payments`, JSON.stringify([]));
+    localStorage.setItem(`${STORAGE_KEY}_khmer_due`, JSON.stringify([]));
+    localStorage.setItem(`${STORAGE_KEY}_english_due`, JSON.stringify([]));
+    localStorage.setItem(`${STORAGE_KEY}_expenses`, JSON.stringify([]));
+    localStorage.setItem(`${STORAGE_KEY}_academicRecords`, JSON.stringify([]));
+    localStorage.setItem(`${STORAGE_KEY}_callNotes`, JSON.stringify([]));
+    localStorage.setItem(`${STORAGE_KEY}_stockMovements`, JSON.stringify([]));
+    localStorage.setItem(`${STORAGE_KEY}_promotions`, JSON.stringify([]));
+  };
+
+  // Payment Period Configuration helpers
+  const paymentPeriods = settings.paymentPeriods && settings.paymentPeriods.length > 0
+    ? settings.paymentPeriods 
+    : DEFAULT_PAYMENT_PERIODS;
+
+  const updatePaymentPeriods = (periods: PaymentPeriodConfig[]) => {
+    setSettings(prev => ({ ...prev, paymentPeriods: periods }));
+  };
+
+  const updatePaymentPeriod = (id: string, periodUpdate: Partial<PaymentPeriodConfig>) => {
+    setSettings(prev => ({
+      ...prev,
+      paymentPeriods: (prev.paymentPeriods || DEFAULT_PAYMENT_PERIODS).map(p => 
+        p.id === id ? { ...p, ...periodUpdate } : p
+      )
+    }));
   };
 
   // Telegram Integration Actions
@@ -2000,6 +2073,9 @@ export const SchoolProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         settings,
         updateSettings,
         updateSemesterConfig,
+        paymentPeriods,
+        updatePaymentPeriods,
+        updatePaymentPeriod,
         addBranch,
         updateBranch,
         deleteBranch,
@@ -2007,6 +2083,7 @@ export const SchoolProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         createBackupJson,
         restoreFromBackupJson,
         resetToDefaults,
+        clearAllDataKeepSettings,
         sendTelegramPaymentReceipt,
         sendTelegramBackupNow,
         testTelegramConnection,

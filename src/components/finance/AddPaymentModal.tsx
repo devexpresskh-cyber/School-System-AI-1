@@ -1,7 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useSchool } from '../../context/SchoolContext';
 import { Student, PaymentMethod, PaymentStatus } from '../../types';
-import { X, Search } from 'lucide-react';
+import { X, Search, Calendar, DollarSign, AlertCircle, Sparkles, CheckCircle2, Layers, Clock } from 'lucide-react';
 
 interface AddPaymentModalProps {
   isOpen: boolean;
@@ -16,6 +16,7 @@ export const AddPaymentModal: React.FC<AddPaymentModalProps> = ({
 }) => {
   const { 
     students, 
+    payments,
     addPayment, 
     currentBranchId, 
     currentUser, 
@@ -25,6 +26,7 @@ export const AddPaymentModal: React.FC<AddPaymentModalProps> = ({
     settings,
     branchStudents,
     feeCategories,
+    paymentPeriods,
     getNextInvoiceNumber 
   } = useSchool();
 
@@ -33,6 +35,7 @@ export const AddPaymentModal: React.FC<AddPaymentModalProps> = ({
   );
   const [studentSearch, setStudentSearch] = useState('');
   const [showStudentDropdown, setShowStudentDropdown] = useState(false);
+  const [selectedPeriodId, setSelectedPeriodId] = useState<string>('');
 
   // Form fields
   const [invoiceNumber, setInvoiceNumber] = useState('');
@@ -72,6 +75,83 @@ export const AddPaymentModal: React.FC<AddPaymentModalProps> = ({
     setInvoiceNumber(nextInv);
   };
 
+  // Contextual Fee Items & Services filtered by current student class
+  const classFeeItems = useMemo(() => {
+    if (!selectedStudent?.classGrade) return [];
+    const grade = selectedStudent.classGrade.trim().toLowerCase();
+
+    const matchedFeeCats = feeCategories.filter(fc => {
+      if (fc.status === 'inactive') return false;
+      const fcClass = (fc.classGrade || '').trim().toLowerCase();
+      const fcAppGrades = (fc.applicableGrades || []).map(g => g.trim().toLowerCase());
+      return fcClass.includes(grade) || 
+             grade.includes(fcClass) || 
+             fcClass.includes('all') || 
+             fcAppGrades.some(g => g.includes(grade) || grade.includes(g) || g.includes('all'));
+    });
+
+    const matchedServices = services.filter(s => {
+      if (s.status === 'inactive') return false;
+      const appGrades = (s.applicableGrades || []).map(g => g.trim().toLowerCase());
+      return appGrades.some(g => g.includes(grade) || grade.includes(g) || g.includes('all') || g.includes('every'));
+    });
+
+    return [
+      ...matchedFeeCats.map(fc => ({
+        id: fc.id,
+        code: fc.code,
+        nameKhmer: fc.nameKhmer,
+        nameEnglish: fc.nameEnglish,
+        amount: fc.defaultAmount,
+        type: 'feeCategory' as const,
+        detail: `${fc.categoryType} · ${fc.academicYear || ''}`
+      })),
+      ...matchedServices.map(s => ({
+        id: s.id,
+        code: s.code,
+        nameKhmer: s.nameKhmer,
+        nameEnglish: s.nameEnglish,
+        amount: s.feeUSD,
+        type: 'service' as const,
+        detail: `${s.category} · ${s.billingCycle}`
+      }))
+    ];
+  }, [selectedStudent, feeCategories, services]);
+
+  // Handle Payment Period Selection (1 month, 2 months, quarter, semester, year)
+  // Auto-fills startdate/enddate and auto-calculates period price based on student tuition
+  const handleSelectPaymentPeriod = (periodId: string) => {
+    setSelectedPeriodId(periodId);
+    const period = paymentPeriods.find(p => p.id === periodId);
+    if (!period) return;
+
+    if (period.startDate) setStartDate(period.startDate);
+    if (period.endDate) setEndDate(period.endDate);
+    setPaymentType(period.nameKhmer);
+
+    // Calculate price based on student tuition and period duration
+    const tuition = selectedStudent?.tuitionFee || 980;
+    const monthlyRate = tuition / 10;
+    let periodPrice = period.fixedPrice 
+      ? period.fixedPrice 
+      : Number((monthlyRate * (period.monthsCount || 1)).toFixed(2));
+    
+    if (selectedStudent?.curriculum === 'english' && (period.monthsCount === 3 || period.code === 'QUARTER')) {
+      periodPrice = Number((tuition / 4).toFixed(2));
+    } else if (period.monthsCount === 5 || period.code.includes('SEMESTER')) {
+      periodPrice = Number((tuition / 2).toFixed(2));
+    } else if (period.monthsCount === 10 || period.code === 'FULL_YEAR') {
+      periodPrice = tuition;
+    }
+
+    setFullAmount(periodPrice);
+    const disc = selectedStudent?.discountPercentage || period.discountPercentage || 0;
+    setDiscountPercent(disc);
+    const payable = Math.max(0, Number((periodPrice * (1 - disc / 100)).toFixed(2)));
+    setAmountPaidUSD(payable);
+    setAmountReceivedUSD(payable);
+  };
+
   const handlePaymentTypeChange = (typeVal: string) => {
     setPaymentType(typeVal);
     // Auto-calculate dates for 10-week Term or Semester
@@ -97,9 +177,19 @@ export const AddPaymentModal: React.FC<AddPaymentModalProps> = ({
     }
   };
 
+  const handleApplyClassFeeItem = (item: { code: string; nameKhmer: string; amount: number; detail: string }) => {
+    setTitle(item.nameKhmer);
+    setDescription(`${item.code} - ${item.nameKhmer} (${item.detail})`);
+    setFullAmount(item.amount);
+    const disc = selectedStudent?.discountPercentage || 0;
+    setDiscountPercent(disc);
+    const payable = Math.max(0, Number((item.amount * (1 - disc / 100)).toFixed(2)));
+    setAmountPaidUSD(payable);
+    setAmountReceivedUSD(payable);
+  };
+
   const handleTitleChange = (val: string) => {
     setTitle(val);
-    // Check fee categories (Account Setting configured by Class & Academic Year)
     const matchedCategory = feeCategories.find(fc => fc.nameKhmer === val || fc.nameEnglish === val || fc.code === val);
     if (matchedCategory) {
       setFullAmount(matchedCategory.defaultAmount);
@@ -111,7 +201,6 @@ export const AddPaymentModal: React.FC<AddPaymentModalProps> = ({
       return;
     }
 
-    // Check if it's a service
     const matchedService = services.find(s => s.nameKhmer === val || s.nameEnglish === val || s.code === val);
     if (matchedService) {
       setFullAmount(matchedService.feeUSD);
@@ -122,7 +211,7 @@ export const AddPaymentModal: React.FC<AddPaymentModalProps> = ({
       }
       return;
     }
-    // Check if it's a product
+
     const matched = products.find(p => p.nameKhmer === val || p.nameEnglish === val || p.code === val);
     if (matched && matched.unitPrice > 0) {
       setFullAmount(matched.unitPrice);
@@ -141,6 +230,23 @@ export const AddPaymentModal: React.FC<AddPaymentModalProps> = ({
   const cashChangeUSD = Math.max(0, Number((amountReceivedUSD - amountPaidUSD).toFixed(2)));
   const cashChangeKHR = Math.round(cashChangeUSD * exchangeRate);
   const cashChangeDisplay = currencyCashChange === 'USD' ? `$${cashChangeUSD.toFixed(2)}` : `${cashChangeKHR.toLocaleString()} ៛`;
+
+  // Automatic Calculation for Amount Owed for Next Payment
+  const studentPastYearDebt = selectedStudent?.pastYearDue || 0;
+  const studentPriorInvoices = useMemo(() => {
+    if (!selectedStudent) return [];
+    return payments.filter(p => 
+      p.studentId === selectedStudent.id || 
+      (p.studentCode && selectedStudent.studentCode && p.studentCode.toLowerCase() === selectedStudent.studentCode.toLowerCase())
+    );
+  }, [selectedStudent, payments]);
+
+  const priorUnpaidBalance = useMemo(() => {
+    return studentPriorInvoices.reduce((sum, p) => sum + (p.owedRemain || 0), 0);
+  }, [studentPriorInvoices]);
+
+  // Total Owed for Next Payment: Past Year Owed + Prior Invoices Unpaid + Current Invoice Remaining Owed
+  const totalOwedForNextPayment = Number((studentPastYearDebt + priorUnpaidBalance + owedRemain).toFixed(2));
 
   // Update status automatically based on payments
   useEffect(() => {
@@ -284,6 +390,41 @@ export const AddPaymentModal: React.FC<AddPaymentModalProps> = ({
                 </div>
               </div>
             )}
+
+            {/* Contextual Fee Items & Services filtered by Student's Current Class */}
+            {selectedStudent && classFeeItems.length > 0 && (
+              <div className="mt-3 pt-3 border-t border-slate-200">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-[11px] font-semibold text-blue-900 flex items-center gap-1.5 font-khmer">
+                    <Sparkles className="w-3.5 h-3.5 text-blue-600" />
+                    សេវាកម្ម & ថ្លៃសិក្សាសម្រាប់ថ្នាក់ <span className="bg-blue-100 text-blue-800 px-1.5 py-0.2 rounded font-bold">{selectedStudent.classGrade}</span> (Fee Items by Current Class):
+                  </span>
+                  <span className="text-[10px] text-slate-500">ចុចលើសេវាដើម្បីបំពេញស្វ័យប្រវត្តិ</span>
+                </div>
+                <div className="flex flex-wrap gap-1.5">
+                  {classFeeItems.map(item => (
+                    <button
+                      key={item.id}
+                      type="button"
+                      onClick={() => handleApplyClassFeeItem(item)}
+                      className={`px-2.5 py-1 text-xs rounded-lg border transition-all text-left flex items-center gap-1.5 cursor-pointer shadow-2xs ${
+                        title === item.nameKhmer
+                          ? 'bg-blue-700 text-white border-blue-800 font-semibold shadow-xs'
+                          : 'bg-white hover:bg-blue-50 text-slate-700 border-slate-300 hover:border-blue-400'
+                      }`}
+                    >
+                      <span className={`font-mono text-[10px] font-bold px-1 py-0.2 rounded ${title === item.nameKhmer ? 'bg-blue-800 text-blue-100' : 'bg-slate-100 text-slate-600'}`}>
+                        {item.code}
+                      </span>
+                      <span className="font-khmer truncate max-w-[170px]">{item.nameKhmer}</span>
+                      <span className={`font-mono font-bold text-[11px] ml-0.5 px-1 rounded ${title === item.nameKhmer ? 'bg-blue-900 text-emerald-300' : 'bg-emerald-50 text-emerald-700'}`}>
+                        ${item.amount}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Form fields grid matching Screenshot 111441 */}
@@ -343,10 +484,30 @@ export const AddPaymentModal: React.FC<AddPaymentModalProps> = ({
               />
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            {/* Payment Period (Account Setting) & Running Year & Dates */}
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+              <div>
+                <label className="block text-xs font-semibold text-blue-900 mb-1 flex items-center justify-between">
+                  <span>Payment Period (វដ្តបង់ប្រាក់)</span>
+                  <span className="text-[10px] text-blue-600 font-normal">Auto-fill & Price</span>
+                </label>
+                <select
+                  value={selectedPeriodId}
+                  onChange={(e) => handleSelectPaymentPeriod(e.target.value)}
+                  className="w-full h-9 px-2.5 text-xs border border-blue-400 bg-blue-50/50 rounded-md focus:ring-2 focus:ring-blue-500 focus:outline-none font-khmer font-medium"
+                >
+                  <option value="">-- ជ្រើសរើសវដ្ត (Select Period) --</option>
+                  {paymentPeriods.map(p => (
+                    <option key={p.id} value={p.id}>
+                      {p.nameKhmer}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
               <div>
                 <label className="block text-xs font-medium text-slate-600 mb-1">
-                  Running Year <span className="text-[10px] text-blue-600 font-normal">(Invoice # counts from 1 each year)</span>
+                  Running Year <span className="text-[10px] text-blue-600 font-normal">(Invoice # count)</span>
                 </label>
                 <select
                   value={runningYear}
@@ -361,7 +522,7 @@ export const AddPaymentModal: React.FC<AddPaymentModalProps> = ({
               </div>
 
               <div>
-                <label className="block text-xs font-medium text-slate-600 mb-1">Payment Type (វដ្តបង់ប្រាក់ / Term)</label>
+                <label className="block text-xs font-medium text-slate-600 mb-1">Payment Type (ប្រភេទ)</label>
                 <select
                   value={paymentType}
                   onChange={(e) => handlePaymentTypeChange(e.target.value)}
@@ -375,6 +536,8 @@ export const AddPaymentModal: React.FC<AddPaymentModalProps> = ({
                     <option value="Term (បង់ជា Term)">Term (បង់ជា Term / 10 សប្តាហ៍)</option>
                   </optgroup>
                   <optgroup label="🇰🇭 កម្មវិធីចំណេះទូទៅ & វដ្តទូទៅ (Khmer General & Other Cycles)">
+                    <option value="១ ខែ (1 Month)">១ ខែ (1 Month)</option>
+                    <option value="២ ខែ (2 Months)">២ ខែ (2 Months)</option>
                     <option value="ឆមាសទី១">ឆមាសទី១ (Semester 1)</option>
                     <option value="ឆមាសទី២">ឆមាសទី២ (Semester 2)</option>
                     <option value="ត្រីមាសទី១">ត្រីមាសទី១ (Quarter 1)</option>
@@ -543,6 +706,54 @@ export const AddPaymentModal: React.FC<AddPaymentModalProps> = ({
                   value={cashChangeDisplay}
                   className="w-full h-9 px-3 text-xs border border-slate-200 bg-slate-100 rounded-md font-mono font-semibold text-slate-800"
                 />
+              </div>
+            </div>
+
+            {/* Auto-Calculated Owed for Next Payment Card */}
+            <div className="bg-gradient-to-r from-amber-50/90 via-orange-50/70 to-amber-50/90 border border-amber-300 rounded-xl p-3.5 shadow-xs">
+              <div className="flex flex-wrap items-center justify-between gap-2 mb-2 pb-2 border-b border-amber-200/80">
+                <div className="flex items-center gap-2">
+                  <span className="w-2.5 h-2.5 rounded-full bg-amber-500 animate-pulse"></span>
+                  <span className="text-xs font-bold text-amber-950 font-khmer">
+                    សមតុល្យជំពាក់សរុបសម្រាប់លើកក្រោយ (Auto-Calculated Owed for Next Payment)
+                  </span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-medium text-amber-800">សរុបទាំងអស់:</span>
+                  <span className="text-sm font-mono font-extrabold text-amber-800 bg-white px-2.5 py-0.5 rounded-md border border-amber-300 shadow-2xs">
+                    ${totalOwedForNextPayment.toFixed(2)} USD
+                  </span>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-[11px]">
+                <div className="bg-white/90 p-2 rounded-lg border border-amber-200/80">
+                  <div className="text-slate-500 text-[10px]">ជំពាក់ឆ្នាំចាស់ (Past Year Due):</div>
+                  <div className="font-mono font-bold text-slate-800 text-xs mt-0.5">
+                    ${studentPastYearDebt.toFixed(2)}
+                  </div>
+                </div>
+
+                <div className="bg-white/90 p-2 rounded-lg border border-amber-200/80">
+                  <div className="text-slate-500 text-[10px]">វិក្កយបត្រមុនៗ (Prior Invoices):</div>
+                  <div className="font-mono font-bold text-slate-800 text-xs mt-0.5">
+                    ${priorUnpaidBalance.toFixed(2)}
+                  </div>
+                </div>
+
+                <div className="bg-white/90 p-2 rounded-lg border border-amber-200/80">
+                  <div className="text-slate-500 text-[10px]">ជំពាក់វិក្កយបត្រនេះ (Current Due):</div>
+                  <div className={`font-mono font-bold text-xs mt-0.5 ${owedRemain > 0 ? 'text-red-600' : 'text-emerald-600'}`}>
+                    ${owedRemain.toFixed(2)}
+                  </div>
+                </div>
+
+                <div className="bg-amber-100/90 p-2 rounded-lg border border-amber-300">
+                  <div className="text-amber-950 font-semibold text-[10px]">សរុបជំពាក់លើកក្រោយ (Next Due):</div>
+                  <div className="font-mono font-extrabold text-amber-800 text-xs mt-0.5">
+                    ${totalOwedForNextPayment.toFixed(2)}
+                  </div>
+                </div>
               </div>
             </div>
 

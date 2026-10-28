@@ -289,6 +289,19 @@ export interface TelegramConfig {
   channelName?: string;
 }
 
+export interface PaymentPeriodConfig {
+  id: string; // e.g. '1month' | '2months' | 'quarter' | 'semester_1' | 'semester_2' | 'full_year' | custom
+  code: string; // e.g. '1_MONTH', '2_MONTHS', 'QUARTER', 'SEMESTER_1', 'SEMESTER_2', 'FULL_YEAR'
+  nameKhmer: string; // e.g. "១ ខែ (1 Month)", "២ ខែ (2 Months)", "១ ត្រីមាស (Quarter)", "ឆមាសទី ១ (Semester 1)", "ពេញមួយឆ្នាំ (Full Year)"
+  nameEnglish: string; // e.g. "1 Month", "2 Months", "Quarter (3 Months)", "Semester 1", "Full Year"
+  monthsCount: number; // e.g. 1, 2, 3, 5, 10
+  startDate: string; // YYYY-MM-DD
+  endDate: string;   // YYYY-MM-DD
+  discountPercentage?: number;
+  fixedPrice?: number;
+  isActive: boolean;
+}
+
 export interface SemesterDateConfig {
   academicYear: string;
   semester1StartDate: string; // YYYY-MM-DD
@@ -309,6 +322,7 @@ export interface SystemSettings {
   activeAcademicYear: string;
   gradeLevels: string[];
   terms: string[];
+  paymentPeriods?: PaymentPeriodConfig[];
   semesterConfigs?: Record<string, SemesterDateConfig>;
   currencySymbolUSD: string;
   currencySymbolKHR: string;

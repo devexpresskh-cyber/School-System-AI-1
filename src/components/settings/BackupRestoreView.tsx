@@ -15,7 +15,8 @@ import {
   ExternalLink,
   CheckCircle2,
   XCircle,
-  Settings
+  Settings,
+  Trash2
 } from 'lucide-react';
 
 export const BackupRestoreView: React.FC = () => {
@@ -23,6 +24,7 @@ export const BackupRestoreView: React.FC = () => {
     createBackupJson, 
     restoreFromBackupJson, 
     resetToDefaults, 
+    clearAllDataKeepSettings,
     settings, 
     students, 
     payments, 
@@ -41,8 +43,10 @@ export const BackupRestoreView: React.FC = () => {
   const [isTelegramBackingUp, setIsTelegramBackingUp] = useState(false);
   const [telegramBackupStatus, setTelegramBackupStatus] = useState<{ success: boolean; msg: string } | null>(null);
 
-  // Reset Confirm Modal
+  // Reset & Clear Data Confirm Modals
   const [isResetModalOpen, setIsResetModalOpen] = useState(false);
+  const [isClearDataModalOpen, setIsClearDataModalOpen] = useState(false);
+  const [clearDataSuccess, setClearDataSuccess] = useState(false);
 
   const handleDownloadBackup = () => {
     const jsonStr = createBackupJson();
@@ -112,6 +116,16 @@ export const BackupRestoreView: React.FC = () => {
     setRestoreStatus({
       success: true,
       msg: 'System successfully reset to authentic FBIS sample data.'
+    });
+  };
+
+  const handleClearAllDataKeepSettings = () => {
+    clearAllDataKeepSettings();
+    setIsClearDataModalOpen(false);
+    setClearDataSuccess(true);
+    setRestoreStatus({
+      success: true,
+      msg: 'ទិន្នន័យប្រតិបត្តិការទាំងអស់ត្រូវបានលុបជោគជ័យ ដោយរក្សាទុកការកំណត់ប្រព័ន្ធ សាខា គណនី និងតារាងតម្លៃថ្លៃសិក្សា។ (All records cleared; settings kept).'
     });
   };
 
@@ -247,24 +261,26 @@ export const BackupRestoreView: React.FC = () => {
         )}
       </div>
 
-      {/* Two Column Actions: Backup & Restore */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+      {/* Three Column Actions: Backup, Restore & Clear Data Keeping Settings */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
         {/* Create Backup */}
-        <div className="bg-white p-5 rounded-xl shadow-xs border border-slate-200 space-y-4">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center shrink-0">
-              <Download className="w-5 h-5" />
+        <div className="bg-white p-5 rounded-xl shadow-xs border border-slate-200 space-y-4 flex flex-col justify-between">
+          <div className="space-y-4">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center shrink-0">
+                <Download className="w-5 h-5" />
+              </div>
+              <div>
+                <h3 className="text-sm font-bold text-slate-900">Create Full Backup</h3>
+                <p className="text-xs text-slate-500">Download verified JSON snapshot file.</p>
+              </div>
             </div>
-            <div>
-              <h3 className="text-sm font-bold text-slate-900">Create Full Database Snapshot</h3>
-              <p className="text-xs text-slate-500">Download a verified JSON backup file to your computer.</p>
-            </div>
-          </div>
 
-          <div className="bg-slate-50 p-3.5 rounded-lg text-xs text-slate-600 space-y-1">
-            <div>• Includes students, grades, payments, inventory, expenses, and system settings.</div>
-            <div>• Formatted with ISO timestamp for safe archiving.</div>
-            <div>• Can be restored anytime onto any browser or device.</div>
+            <div className="bg-slate-50 p-3 rounded-lg text-xs text-slate-600 space-y-1">
+              <div>• Includes students, marks, payments, and settings.</div>
+              <div>• Formatted with timestamp for archival.</div>
+              <div>• Can be restored anytime onto any device.</div>
+            </div>
           </div>
 
           <button
@@ -272,44 +288,88 @@ export const BackupRestoreView: React.FC = () => {
             className="w-full py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded-lg shadow-xs flex items-center justify-center gap-2 transition-colors cursor-pointer"
           >
             <Download className="w-4 h-4" />
-            <span>Download Full System Backup (.json)</span>
+            <span>Download Backup (.json)</span>
           </button>
         </div>
 
         {/* Restore Backup */}
-        <div className="bg-white p-5 rounded-xl shadow-xs border border-slate-200 space-y-4">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0">
-              <Upload className="w-5 h-5" />
+        <div className="bg-white p-5 rounded-xl shadow-xs border border-slate-200 space-y-4 flex flex-col justify-between">
+          <div className="space-y-4">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0">
+                <Upload className="w-5 h-5" />
+              </div>
+              <div>
+                <h3 className="text-sm font-bold text-slate-900">Restore From Backup</h3>
+                <p className="text-xs text-slate-500">Upload a saved .json backup file.</p>
+              </div>
             </div>
-            <div>
-              <h3 className="text-sm font-bold text-slate-900">Restore System From Backup</h3>
-              <p className="text-xs text-slate-500">Upload a previously saved .json backup file.</p>
+
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept=".json"
+              onChange={handleFileSelect}
+              className="hidden"
+              id="backup-file-upload"
+            />
+
+            <div className="bg-slate-50 p-3 rounded-lg text-xs text-slate-600 space-y-1">
+              <div>• Restores all collections from previous snapshot.</div>
+              <div>• Validates schema integrity before committing.</div>
+              <div>• Immediate refresh upon successful import.</div>
             </div>
-          </div>
-
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept=".json"
-            onChange={handleFileSelect}
-            className="hidden"
-            id="backup-file-upload"
-          />
-
-          <div className="bg-slate-50 p-3.5 rounded-lg text-xs text-slate-600 space-y-1">
-            <div>• Overwrites current database state with the backup snapshot.</div>
-            <div>• Validates schema integrity before committing changes.</div>
-            <div>• Automatic refresh after restore.</div>
           </div>
 
           <label
             htmlFor="backup-file-upload"
-            className="w-full py-2.5 bg-slate-800 hover:bg-slate-900 text-white font-bold text-xs rounded-lg shadow-xs flex items-center justify-center gap-2 transition-colors cursor-pointer"
+            className="w-full py-2.5 bg-slate-800 hover:bg-slate-900 text-white font-bold text-xs rounded-lg shadow-xs flex items-center justify-center gap-2 transition-colors cursor-pointer text-center"
           >
             <Upload className="w-4 h-4" />
-            <span>Select & Restore Backup File</span>
+            <span>Select & Restore File</span>
           </label>
+        </div>
+
+        {/* Clear All Data (Keep Settings) */}
+        <div className="bg-white p-5 rounded-xl shadow-xs border border-amber-200 space-y-4 flex flex-col justify-between relative overflow-hidden">
+          <div className="space-y-4">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center shrink-0">
+                <Trash2 className="w-5 h-5" />
+              </div>
+              <div>
+                <h3 className="text-sm font-bold text-slate-900 flex items-center gap-1.5">
+                  <span>Clear All Data</span>
+                  <span className="text-[10px] bg-emerald-100 text-emerald-800 font-bold px-1.5 py-0.5 rounded">
+                    Keep Settings
+                  </span>
+                </h3>
+                <p className="text-xs text-slate-500 font-khmer">សម្អាតទិន្នន័យ (រក្សាការកំណត់)</p>
+              </div>
+            </div>
+
+            <div className="bg-amber-50/60 p-3 rounded-lg text-xs text-amber-900 space-y-1 border border-amber-100 font-khmer">
+              <div className="font-semibold text-amber-950 flex items-center gap-1">
+                <Check className="w-3.5 h-3.5 text-emerald-600" />
+                <span>រក្សាទុក: ការកំណត់ប្រព័ន្ធ, សាខា, គណនី, តារាងតម្លៃ</span>
+              </div>
+              <div className="text-rose-700 flex items-center gap-1">
+                <AlertTriangle className="w-3.5 h-3.5 text-rose-500" />
+                <span>សម្អាត: សិស្ស, វិក្កយបត្រ, របាយការណ៍ជំពាក់, ពិន្ទុ</span>
+              </div>
+              <div className="text-[11px] text-slate-500 pt-1 border-t border-amber-200/50">
+                រៀបចំប្រព័ន្ធស្អាតសម្រាប់ចាប់ផ្តើមឆ្នាំសិក្សាថ្មី ឬការនាំចូល SQL ថ្មី។
+              </div>
+            </div>
+          </div>
+
+          <button
+            onClick={() => setIsClearDataModalOpen(true)}
+            className="w-full py-2.5 bg-gradient-to-r from-amber-600 to-rose-600 hover:from-amber-700 hover:to-rose-700 text-white font-bold text-xs rounded-lg shadow-xs flex items-center justify-center gap-2 transition-all cursor-pointer"
+          >
+            <Trash2 className="w-4 h-4" />
+            <span className="font-khmer">សម្អាតទិន្នន័យ (រក្សាការកំណត់)</span>
+          </button>
         </div>
       </div>
 
@@ -367,6 +427,17 @@ export const BackupRestoreView: React.FC = () => {
         confirmText="Reset All Data"
         onConfirm={handleResetToDefaults}
         onClose={() => setIsResetModalOpen(false)}
+      />
+
+      {/* In-app Confirmation Modal for Clear All Data Keeping Settings */}
+      <ConfirmModal
+        isOpen={isClearDataModalOpen}
+        title="សម្អាតទិន្នន័យទាំងអស់ (Clear All Data - Keep Settings)"
+        message="តើលោកអ្នកពិតជាចង់សម្អាតទិន្នន័យសិស្ស វិក្កយបត្របង់ប្រាក់ របាយការណ៍ជំពាក់ និងកំណត់ត្រាពិន្ទុទាំងអស់មែនទេ? ការកំណត់ប្រព័ន្ធ សាខាសាលា បញ្ជីគណនី និងតារាងតម្លៃថ្លៃសិក្សានឹងត្រូវបានរក្សាទុកដូចដើម។"
+        itemName="Clear Data Keeping Configurations"
+        confirmText="Confirm Clear All Data"
+        onConfirm={handleClearAllDataKeepSettings}
+        onClose={() => setIsClearDataModalOpen(false)}
       />
     </div>
   );
