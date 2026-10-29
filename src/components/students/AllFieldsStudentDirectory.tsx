@@ -83,15 +83,27 @@ export const AllFieldsStudentDirectory: React.FC<AllFieldsStudentDirectoryProps>
   // Filtered Students
   const filteredStudents = useMemo(() => {
     return branchStudents.filter(s => {
-      const matchSearch = !searchTerm.trim() ||
-        s.nameKhmer.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        s.nameEnglish.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        s.studentCode.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        s.roll.includes(searchTerm) ||
-        (s.parentName && s.parentName.toLowerCase().includes(searchTerm.toLowerCase())) ||
-        (s.guardianPhone && s.guardianPhone.includes(searchTerm)) ||
-        (s.phone && s.phone.includes(searchTerm)) ||
-        (s.address && s.address.toLowerCase().includes(searchTerm.toLowerCase()));
+      const sTerm = searchTerm.trim().toLowerCase();
+      let matchSearch = true;
+      if (sTerm) {
+        const kName = String(s.nameKhmer || '').toLowerCase();
+        const eName = String(s.nameEnglish || '').toLowerCase();
+        const code = String(s.studentCode || '').toLowerCase();
+        const roll = String(s.roll || '').toLowerCase();
+        const pName = String(s.parentName || '').toLowerCase();
+        const gPhone = String(s.guardianPhone || '').toLowerCase();
+        const phone = String(s.phone || '').toLowerCase();
+        const addr = String(s.address || '').toLowerCase();
+
+        matchSearch = kName.includes(sTerm) ||
+          eName.includes(sTerm) ||
+          code.includes(sTerm) ||
+          roll.includes(sTerm) ||
+          pName.includes(sTerm) ||
+          gPhone.includes(sTerm) ||
+          phone.includes(sTerm) ||
+          addr.includes(sTerm);
+      }
 
       const matchGrade = !selectedGrade || s.classGrade === selectedGrade;
       const matchCurriculum = selectedCurriculum === 'all' || s.curriculum === selectedCurriculum;

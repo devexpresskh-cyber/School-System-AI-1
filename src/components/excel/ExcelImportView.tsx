@@ -215,22 +215,29 @@ export const ExcelImportView: React.FC = () => {
   const handleExecuteImport = () => {
     if (parsedRows.length === 0) return;
     setIsProcessing(true);
+    setErrorMsg('');
 
     setTimeout(() => {
-      let res;
-      if (importType === 'students') {
-        res = importStudentsFromExcel(parsedRows);
-      } else if (importType === 'payments') {
-        res = importPaymentsFromExcel(parsedRows);
-      } else {
-        res = importGradesFromExcel(parsedRows);
-      }
+      try {
+        let res;
+        if (importType === 'students') {
+          res = importStudentsFromExcel(parsedRows);
+        } else if (importType === 'payments') {
+          res = importPaymentsFromExcel(parsedRows);
+        } else {
+          res = importGradesFromExcel(parsedRows);
+        }
 
-      setImportResult(res);
-      setIsProcessing(false);
-      setParsedRows([]);
-      if (fileInputRef.current) fileInputRef.current.value = '';
-    }, 400);
+        setImportResult(res);
+        setParsedRows([]);
+        if (fileInputRef.current) fileInputRef.current.value = '';
+      } catch (err: any) {
+        console.error('[FBIS] Excel Import Error:', err);
+        setErrorMsg(`Failed to import data: ${err?.message || 'Unexpected parsing error'}`);
+      } finally {
+        setIsProcessing(false);
+      }
+    }, 300);
   };
 
   const handleReset = () => {
@@ -252,7 +259,7 @@ export const ExcelImportView: React.FC = () => {
               <span>Import Data from Excel / CSV (នាំចូលទិន្នន័យពី Excel)</span>
             </h2>
             <p className="text-xs text-slate-500 mt-1">
-              Seamlessly import bulk students, fee payments, and academic exam scores into {selectedBranch.nameEnglish}.
+              Seamlessly import bulk students, fee payments, and academic exam scores into {selectedBranch?.nameEnglish || 'Campus'}.
             </p>
           </div>
 
@@ -470,7 +477,7 @@ export const ExcelImportView: React.FC = () => {
         <div className="p-4 bg-emerald-50 border border-emerald-200 rounded-xl text-emerald-800 text-xs">
           <div className="flex items-center gap-2 font-bold text-sm">
             <CheckCircle className="w-5 h-5 text-emerald-600 shrink-0" />
-            <span>Successfully imported {importResult.successCount} {importType} records into {selectedBranch.code}!</span>
+            <span>Successfully imported {importResult.successCount} {importType} records into {selectedBranch?.code || 'FBIS'}!</span>
           </div>
           {importResult.errors.length > 0 && (
             <div className="mt-2 pl-7 text-[11px] text-amber-800 space-y-1">

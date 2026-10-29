@@ -62,11 +62,18 @@ export const StudentsList: React.FC = () => {
   const [newParentName, setNewParentName] = useState('');
 
   const filteredStudents = branchStudents.filter(s => {
-    const matchSearch = !searchFilter.trim() ||
-      s.nameKhmer.toLowerCase().includes(searchFilter.toLowerCase()) ||
-      s.nameEnglish.toLowerCase().includes(searchFilter.toLowerCase()) ||
-      s.roll.includes(searchFilter) ||
-      s.studentCode.toLowerCase().includes(searchFilter.toLowerCase());
+    const sTerm = searchFilter.trim().toLowerCase();
+    if (!sTerm) return !gradeFilter || s.classGrade === gradeFilter;
+
+    const kName = String(s.nameKhmer || '').toLowerCase();
+    const eName = String(s.nameEnglish || '').toLowerCase();
+    const roll = String(s.roll || '').toLowerCase();
+    const code = String(s.studentCode || '').toLowerCase();
+
+    const matchSearch = kName.includes(sTerm) ||
+      eName.includes(sTerm) ||
+      roll.includes(sTerm) ||
+      code.includes(sTerm);
 
     const matchGrade = !gradeFilter || s.classGrade === gradeFilter;
     return matchSearch && matchGrade;

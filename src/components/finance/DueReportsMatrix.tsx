@@ -372,10 +372,14 @@ export const DueReportsMatrix: React.FC = () => {
   // Filtered lists
   const filteredKhmer = useMemo(() => {
     return sourceKhmerRecords.filter(r => {
-      const matchSearch = !search.trim() ||
-        r.studentCode.toLowerCase().includes(search.toLowerCase()) ||
-        r.nameKhmer.toLowerCase().includes(search.toLowerCase()) ||
-        r.nameEnglish.toLowerCase().includes(search.toLowerCase());
+      const sTerm = search.trim().toLowerCase();
+      let matchSearch = true;
+      if (sTerm) {
+        const code = String(r.studentCode || '').toLowerCase();
+        const kName = String(r.nameKhmer || '').toLowerCase();
+        const eName = String(r.nameEnglish || '').toLowerCase();
+        matchSearch = code.includes(sTerm) || kName.includes(sTerm) || eName.includes(sTerm);
+      }
       // Include 2025-2026 as well as cross-year records (e.g. Uch Tipor's Grade 7 advance)
       const matchYear = !selectedYear || selectedYear === 'all' || r.academicYear === selectedYear || r.studentCode === 'FBIS5402';
       const recordClass = getKhmerRecordClass(r);
@@ -386,10 +390,14 @@ export const DueReportsMatrix: React.FC = () => {
 
   const filteredEnglish = useMemo(() => {
     return sourceEnglishRecords.filter(r => {
-      const matchSearch = !search.trim() ||
-        r.studentCode.toLowerCase().includes(search.toLowerCase()) ||
-        r.nameKhmer.toLowerCase().includes(search.toLowerCase()) ||
-        r.nameEnglish.toLowerCase().includes(search.toLowerCase());
+      const sTerm = search.trim().toLowerCase();
+      let matchSearch = true;
+      if (sTerm) {
+        const code = String(r.studentCode || '').toLowerCase();
+        const kName = String(r.nameKhmer || '').toLowerCase();
+        const eName = String(r.nameEnglish || '').toLowerCase();
+        matchSearch = code.includes(sTerm) || kName.includes(sTerm) || eName.includes(sTerm);
+      }
       const matchYear = !selectedYear || selectedYear === 'all' || r.academicYear === selectedYear;
       const recordClass = getEnglishRecordClass(r);
       const matchClass = selectedClassEnglish === 'all' || recordClass === selectedClassEnglish;

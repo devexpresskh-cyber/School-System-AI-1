@@ -78,12 +78,20 @@ export const DuePaymentsView: React.FC = () => {
   // Filtered Due List
   const dueList = branchPayments.filter(p => {
     const isDue = p.owedRemain > 0 && (p.status === 'Due' || p.status === 'Partial');
-    const matchYear = !selectedYear || p.academicYear === selectedYear || p.academicYear === selectedYear.slice(0, 4);
+    const pYear = String(p.academicYear || '');
+    const sYear = String(selectedYear || '');
+    const matchYear = !sYear || pYear === sYear || (sYear.length >= 4 && pYear === sYear.slice(0, 4));
     const matchSemester = matchesSemesterFilter(p, semesterFilter, semesterConfig);
-    const matchSearch = !search.trim() ||
-      p.studentNameKhmer.toLowerCase().includes(search.toLowerCase()) ||
-      p.studentName.toLowerCase().includes(search.toLowerCase()) ||
-      p.invoiceNumber.toLowerCase().includes(search.toLowerCase());
+
+    const sTerm = search.trim().toLowerCase();
+    let matchSearch = true;
+    if (sTerm) {
+      const pKhmer = String(p.studentNameKhmer || '').toLowerCase();
+      const pEng = String(p.studentName || '').toLowerCase();
+      const pInv = String(p.invoiceNumber || '').toLowerCase();
+      matchSearch = pKhmer.includes(sTerm) || pEng.includes(sTerm) || pInv.includes(sTerm);
+    }
+
     const matchClass = !classFilter || p.classGrade === classFilter;
     return isDue && matchYear && matchSemester && matchSearch && matchClass;
   });

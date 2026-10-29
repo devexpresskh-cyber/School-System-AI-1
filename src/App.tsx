@@ -18,6 +18,7 @@ import { SystemSettingsView } from './components/settings/SystemSettingsView';
 import { BackupRestoreView } from './components/settings/BackupRestoreView';
 import { StudentPromoteView } from './components/students/StudentPromoteView';
 import { AllFieldsStudentDirectory } from './components/students/AllFieldsStudentDirectory';
+import { ErrorBoundary } from './components/common/ErrorBoundary';
 
 const MainLayout: React.FC = () => {
   const { activeTab, selectedBranch } = useSchool();
@@ -78,7 +79,9 @@ const MainLayout: React.FC = () => {
         />
 
         <main className="flex-1 p-3 md:p-5 overflow-y-auto w-full max-w-none">
-          {renderActiveView()}
+          <ErrorBoundary fallbackTitle="កំហុសក្នុងការបង្ហាញទំព័រ (Error Rendering View)">
+            {renderActiveView()}
+          </ErrorBoundary>
         </main>
       </div>
 
@@ -90,8 +93,10 @@ const MainLayout: React.FC = () => {
 
 export default function App() {
   return (
-    <SchoolProvider>
-      <MainLayout />
-    </SchoolProvider>
+    <ErrorBoundary fallbackTitle="ប្រព័ន្ធគ្រប់គ្រងសាលា FBIS (FBIS School Management)">
+      <SchoolProvider>
+        <MainLayout />
+      </SchoolProvider>
+    </ErrorBoundary>
   );
 }

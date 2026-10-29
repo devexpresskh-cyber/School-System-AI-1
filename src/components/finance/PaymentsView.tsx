@@ -119,15 +119,21 @@ export const PaymentsView: React.FC = () => {
       const matchSemester = matchesSemesterFilter(p, semesterFilter, semesterConfig);
 
       // Academic Year Filter
-      const matchYear = !selectedAcademicYear || p.academicYear === selectedAcademicYear || p.academicYear === selectedAcademicYear.slice(0, 4);
+      const pYear = String(p.academicYear || '');
+      const sYear = String(selectedAcademicYear || '');
+      const matchYear = !sYear || pYear === sYear || (sYear.length >= 4 && pYear === sYear.slice(0, 4));
 
-      const matchSearch = !filterSearch.trim() || 
-        p.studentNameKhmer.toLowerCase().includes(filterSearch.toLowerCase()) ||
-        p.studentName.toLowerCase().includes(filterSearch.toLowerCase()) ||
-        p.invoiceNumber.toLowerCase().includes(filterSearch.toLowerCase());
+      const sTerm = filterSearch.trim().toLowerCase();
+      let matchSearch = true;
+      if (sTerm) {
+        const pKhmer = String(p.studentNameKhmer || '').toLowerCase();
+        const pEng = String(p.studentName || '').toLowerCase();
+        const pInv = String(p.invoiceNumber || '').toLowerCase();
+        matchSearch = pKhmer.includes(sTerm) || pEng.includes(sTerm) || pInv.includes(sTerm);
+      }
 
-      const matchDate = !filterStartDate || p.issuedDate >= filterStartDate;
-      const matchTitle = !filterTitle || p.title.includes(filterTitle);
+      const matchDate = !filterStartDate || String(p.issuedDate || '') >= filterStartDate;
+      const matchTitle = !filterTitle || String(p.title || '').includes(filterTitle);
       const matchClass = !filterClass || p.classGrade === filterClass;
 
       return matchSemester && matchYear && matchSearch && matchDate && matchTitle && matchClass;

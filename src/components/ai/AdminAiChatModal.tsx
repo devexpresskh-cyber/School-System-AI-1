@@ -356,7 +356,7 @@ export const AdminAiChatModal: React.FC<AdminAiChatModalProps> = ({ isOpen, onCl
                         : 'bg-white text-slate-800 border border-slate-200 rounded-bl-xs'
                     }`}
                   >
-                    <div className="whitespace-pre-wrap">{msg.text}</div>
+                    <div className={`whitespace-pre-wrap ${msg.sender === 'user' ? 'text-white font-normal' : 'text-slate-900'}`}>{msg.text}</div>
                     
                     {/* Action Execution Card */}
                     {msg.action && (
@@ -410,7 +410,7 @@ export const AdminAiChatModal: React.FC<AdminAiChatModalProps> = ({ isOpen, onCl
                       </div>
                     )}
 
-                    <div className={`text-[10px] mt-1 text-right font-sans ${msg.sender === 'user' ? 'text-blue-200' : 'text-slate-400'}`}>
+                    <div className={`text-[10px] mt-1 text-right font-sans ${msg.sender === 'user' ? 'text-blue-100' : 'text-slate-500'}`}>
                       {msg.timestamp}
                     </div>
                   </div>
@@ -442,7 +442,7 @@ export const AdminAiChatModal: React.FC<AdminAiChatModalProps> = ({ isOpen, onCl
                 value={inputMessage}
                 onChange={(e) => setInputMessage(e.target.value)}
                 placeholder="វាយបញ្ចូលសំណើកែសម្រួលព័ត៌មាន ឬកត់ត្រាបង់ប្រាក់ (ឧ. បញ្ចុះតម្លៃសិស្ស 3804 មក 15%)..."
-                className="flex-1 h-10 px-3.5 border border-slate-300 rounded-xl text-xs font-khmer focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 focus:outline-none"
+                className="flex-1 h-10 px-3.5 bg-white text-slate-900 font-medium placeholder:text-slate-400 caret-blue-600 border border-slate-300 rounded-xl text-xs font-khmer focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 focus:outline-none focus:text-slate-900"
               />
 
               <button

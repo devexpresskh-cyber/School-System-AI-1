@@ -132,22 +132,29 @@ export const ExcelCopyPasteModal: React.FC<ExcelCopyPasteModalProps> = ({
   const handleExecuteImport = () => {
     if (parsedRows.length === 0) return;
     setIsProcessing(true);
+    setErrorMsg('');
 
     setTimeout(() => {
-      let res;
-      if (importType === 'students') {
-        res = importStudentsFromExcel(parsedRows);
-      } else {
-        res = importPaymentsFromExcel(parsedRows);
-      }
+      try {
+        let res;
+        if (importType === 'students') {
+          res = importStudentsFromExcel(parsedRows);
+        } else {
+          res = importPaymentsFromExcel(parsedRows);
+        }
 
-      setImportResult(res);
-      setIsProcessing(false);
-      if (res.successCount > 0) {
-        setParsedRows([]);
-        setRawPastedText('');
+        setImportResult(res);
+        if (res && res.successCount > 0) {
+          setParsedRows([]);
+          setRawPastedText('');
+        }
+      } catch (err: any) {
+        console.error('[FBIS] Excel Import Error:', err);
+        setErrorMsg(`កំហុសក្នុងការនាំចូល (Import Failed): ${err?.message || 'សូមពិនិត្យទិន្នន័យ Excel របស់អ្នក'}`);
+      } finally {
+        setIsProcessing(false);
       }
-    }, 400);
+    }, 300);
   };
 
   const handleClear = () => {
@@ -298,7 +305,7 @@ export const ExcelCopyPasteModal: React.FC<ExcelCopyPasteModalProps> = ({
             <div className="p-4 bg-emerald-50 border border-emerald-200 rounded-xl text-emerald-800 text-xs">
               <div className="flex items-center gap-2 font-bold text-sm">
                 <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0" />
-                <span>បាននាំចូលទិន្នន័យ {importResult.successCount} កំណត់ត្រា ({importType}) ដោយជោគជ័យទៅកាន់សាខា {selectedBranch.nameEnglish}!</span>
+                <span>បាននាំចូលទិន្នន័យ {importResult.successCount} កំណត់ត្រា ({importType}) ដោយជោគជ័យទៅកាន់សាខា {selectedBranch?.nameEnglish || 'Campus'}!</span>
               </div>
               {importResult.errors.length > 0 && (
                 <div className="mt-2 pl-7 text-[11px] text-amber-800 space-y-0.5">
@@ -377,7 +384,7 @@ export const ExcelCopyPasteModal: React.FC<ExcelCopyPasteModalProps> = ({
         {/* Footer */}
         <div className="bg-slate-50 px-6 py-3.5 border-t border-slate-200 flex items-center justify-between shrink-0">
           <div className="text-xs text-slate-500 font-khmer">
-            ទីតាំងសាខាគោលដៅ: <span className="font-bold text-slate-800">{selectedBranch.nameKhmer} ({selectedBranch.code})</span>
+            ទីតាំងសាខាគោលដៅ: <span className="font-bold text-slate-800">{selectedBranch?.nameKhmer || 'គ្រប់សាខា'} ({selectedBranch?.code || 'FBIS'})</span>
           </div>
 
           <div className="flex items-center gap-2">

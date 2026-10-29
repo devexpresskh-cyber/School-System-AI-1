@@ -1898,37 +1898,51 @@ export const SchoolProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     let count = 0;
     const newStudents: Student[] = [];
 
+    if (!Array.isArray(rows)) {
+      return { successCount: 0, errors: ['Invalid data format: rows is not an array.'] };
+    }
+
     rows.forEach((row, idx) => {
       try {
-        const nameKhmer = row['ឈ្មោះជាភាសាខ្មែរ'] || row['Name Khmer'] || row['nameKhmer'] || row['Name'] || '';
-        const nameEnglish = row['ឈ្មោះជាអក្សរឡាតាំង'] || row['Name English'] || row['nameEnglish'] || row['English Name'] || '';
-        const roll = String(row['អត្តលេខ'] || row['Roll'] || row['roll'] || 4000 + idx);
-        const classGrade = row['ថ្នាក់ទី'] || row['Class'] || row['Grade'] || 'ថ្នាក់ទី ១០';
-        const gender = (row['ភេទ'] === 'ស្រី' || row['Gender'] === 'Female' || row['gender'] === 'F') ? 'Female' : 'Male';
-        const phone = String(row['លេខទូរស័ព្ទ'] || row['Phone'] || row['phone'] || '012 345 678');
-        const birthday = row['ថ្ងៃខែឆ្នាំកំណើត'] || row['Birthday'] || row['birthday'] || '2008-01-01';
+        if (!row || typeof row !== 'object') return;
+        const nameKhmer = String(row['ឈ្មោះជាភាសាខ្មែរ'] || row['Name Khmer'] || row['nameKhmer'] || row['Name'] || '').trim();
+        const nameEnglish = String(row['ឈ្មោះជាអក្សរឡាតាំង'] || row['Name English'] || row['nameEnglish'] || row['English Name'] || '').trim();
+        const roll = String(row['អត្តលេខ'] || row['Roll'] || row['roll'] || (4000 + idx)).trim();
+        const classGrade = String(row['ថ្នាក់ទី'] || row['Class'] || row['Grade'] || 'ថ្នាក់ទី ១០').trim();
+        const genderRaw = String(row['ភេទ'] || row['Gender'] || row['gender'] || '').trim();
+        const gender: 'Female' | 'Male' = (genderRaw === 'ស្រី' || genderRaw.toLowerCase() === 'female' || genderRaw.toLowerCase() === 'f') ? 'Female' : 'Male';
+        const phone = String(row['លេខទូរស័ព្ទ'] || row['Phone'] || row['phone'] || '012 345 678').trim();
+        const birthday = String(row['ថ្ងៃខែឆ្នាំកំណើត'] || row['Birthday'] || row['birthday'] || '2008-01-01').trim();
+        const address = String(row['អាសយដ្ឋាន'] || row['Address'] || 'ក្រុងសៀមរាប').trim();
+        const parentName = String(row['ឈ្មោះអាណាព្យាបាល'] || row['Parent Name'] || 'អាណាព្យាបាល').trim();
 
         if (!nameKhmer && !nameEnglish) {
-          errors.push(`Row ${idx + 1}: Missing student name.`);
+          errors.push(`ជួរទី ${idx + 1}: មិនមានឈ្មោះសិស្ស (Missing student name).`);
           return;
         }
 
-        const studentCode = row['លេខកូដសិស្ស'] || row['Student Code'] || `FBIS02-00${roll}`;
+        const studentCode = String(row['លេខកូដសិស្ស'] || row['Student Code'] || `FBIS02-00${roll}`).trim();
+        const finalKhmer = nameKhmer || nameEnglish;
+        const finalEng = nameEnglish || nameKhmer;
 
         newStudents.push({
-          id: `std-import-${Date.now()}-${idx}`,
+          id: `std-import-${Date.now()}-${idx}-${Math.random().toString(36).slice(2, 6)}`,
           studentCode,
-          nameKhmer: nameKhmer || nameEnglish,
-          nameEnglish: nameEnglish || nameKhmer,
-          username: (nameEnglish || nameKhmer).replace(/\s+/g, '').toUpperCase(),
+          nameKhmer: finalKhmer,
+          nameEnglish: finalEng,
+          username: finalEng.replace(/\s+/g, '').toUpperCase() || `USER${roll}`,
           roll,
           classGrade,
           gender,
           birthday,
           phone,
           guardianPhone: phone,
-          address: row['អាសយដ្ឋាន'] || row['Address'] || 'ក្រុងសៀមរាប',
-          parentName: row['ឈ្មោះអាណាព្យាបាល'] || row['Parent Name'] || 'អាណាព្យាបាល',
+          address,
+          parentName,
+          curriculum: 'Cambodian',
+          tuitionFee: Number(row['តម្លៃពេញ'] || row['Tuition'] || 980) || 980,
+          discountPercentage: Number(row['បញ្ចុះតម្លៃ(%)'] || row['Discount'] || 0) || 0,
+          pastYearDue: 0,
           avatar: gender === 'Female' 
             ? 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=200&auto=format&fit=crop&q=80'
             : 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=200&auto=format&fit=crop&q=80',
@@ -1938,7 +1952,7 @@ export const SchoolProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         });
         count++;
       } catch (err: any) {
-        errors.push(`Row ${idx + 1}: ${err.message}`);
+        errors.push(`Row ${idx + 1}: ${err?.message || 'Error parsing student row'}`);
       }
     });
 
@@ -1954,38 +1968,48 @@ export const SchoolProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     let count = 0;
     const newPayments: PaymentInvoice[] = [];
 
+    if (!Array.isArray(rows)) {
+      return { successCount: 0, errors: ['Invalid data format: rows is not an array.'] };
+    }
+
     rows.forEach((row, idx) => {
       try {
-        const studentName = row['ឈ្មោះសិស្ស'] || row['Student Name'] || row['studentName'] || '';
-        const invoiceNumber = row['លេខវិក្កយបត្រ'] || row['Invoice No'] || `2026-${String(2400 + idx).padStart(6, '0')}`;
-        const fullAmount = Number(row['តម្លៃពេញ'] || row['Full Amount'] || 0);
-        const paidUSD = Number(row['ប្រាក់បង់($)'] || row['Paid USD'] || 0);
-        const paidKHR = Number(row['ប្រាក់បង់(៛)'] || row['Paid KHR'] || 0);
-        const discountPercent = Number(row['បញ្ចុះតម្លៃ(%)'] || row['Discount %'] || 0);
-        const amountToBePaid = Number(row['តម្លៃត្រូវបង់'] || row['Payable'] || (fullAmount * (1 - discountPercent / 100)));
+        if (!row || typeof row !== 'object') return;
+        const studentName = String(row['ឈ្មោះសិស្ស'] || row['Student Name'] || row['studentName'] || '').trim();
+        const invoiceNumber = String(row['លេខវិក្កយបត្រ'] || row['Invoice No'] || `2026-${String(2400 + idx).padStart(6, '0')}`).trim();
+        const fullAmount = Number(row['តម្លៃពេញ'] || row['Full Amount'] || 0) || 0;
+        const paidUSD = Number(row['ប្រាក់បង់($)'] || row['Paid USD'] || 0) || 0;
+        const paidKHR = Number(row['ប្រាក់បង់(៛)'] || row['Paid KHR'] || 0) || 0;
+        const discountPercent = Number(row['បញ្ចុះតម្លៃ(%)'] || row['Discount %'] || 0) || 0;
+        const amountToBePaid = Number(row['តម្លៃត្រូវបង់'] || row['Payable'] || (fullAmount * (1 - discountPercent / 100))) || 0;
         const owedRemain = Math.max(0, amountToBePaid - paidUSD - (paidKHR / 4100));
 
-        const matchedStudent = students.find(s => 
-          s.nameKhmer.includes(studentName) || 
-          s.nameEnglish.toLowerCase().includes(studentName.toLowerCase())
-        );
+        const cleanSearch = studentName.toLowerCase();
+        const matchedStudent = students.find(s => {
+          if (!cleanSearch) return false;
+          const k = String(s.nameKhmer || '').toLowerCase();
+          const e = String(s.nameEnglish || '').toLowerCase();
+          const c = String(s.studentCode || '').toLowerCase();
+          const r = String(s.roll || '').toLowerCase();
+          return k.includes(cleanSearch) || e.includes(cleanSearch) || c === cleanSearch || r === cleanSearch;
+        });
 
         newPayments.push({
-          id: `inv-import-${Date.now()}-${idx}`,
-          invoiceNumber,
-          studentId: matchedStudent?.id || `std-imported-${idx}`,
-          studentName: matchedStudent?.nameEnglish || studentName,
-          studentNameKhmer: matchedStudent?.nameKhmer || studentName,
-          studentCode: matchedStudent?.studentCode || `FBIS02-${invoiceNumber}`,
-          classGrade: row['ថ្នាក់ទី'] || matchedStudent?.classGrade || 'ថ្នាក់ទី ១០',
+          id: `inv-import-${Date.now()}-${idx}-${Math.random().toString(36).slice(2, 6)}`,
+          invoiceNumber: String(invoiceNumber),
+          studentId: String(matchedStudent?.id || `std-imported-${Date.now()}-${idx}`),
+          studentName: String(matchedStudent?.nameEnglish || studentName || 'Student'),
+          studentNameKhmer: String(matchedStudent?.nameKhmer || studentName || 'សិស្ស'),
+          studentCode: String(matchedStudent?.studentCode || `FBIS02-${invoiceNumber}`),
+          classGrade: String(row['ថ្នាក់ទី'] || matchedStudent?.classGrade || 'ថ្នាក់ទី ១០'),
           academicYear: String(row['ឆ្នាំសិក្សា'] || '2026'),
           runningYear: 2026,
-          title: row['ប្រភេទចំណូល'] || row['Description'] || 'ថ្លៃឈ្នួលសិក្សា',
-          description: row['បរិយាយ'] || 'Excel Imported Tuition Fee',
-          paymentType: row['ប្រភេទបង់'] || 'ត្រីមាស',
-          issuedDate: row['កាលបរិច្ឆេទ'] || new Date().toISOString().split('T')[0],
-          startDate: row['ថ្ងៃចាប់ផ្ដើម'] || '2026-09-21',
-          endDate: row['ថ្ងៃបញ្ចប់'] || '2026-12-25',
+          title: String(row['ប្រភេទចំណូល'] || row['Description'] || 'ថ្លៃឈ្នួលសិក្សា'),
+          description: String(row['បរិយាយ'] || 'Excel Imported Tuition Fee'),
+          paymentType: String(row['ប្រភេទបង់'] || 'ត្រីមាស'),
+          issuedDate: String(row['កាលបរិច្ឆេទ'] || new Date().toISOString().split('T')[0]),
+          startDate: String(row['ថ្ងៃចាប់ផ្ដើម'] || '2026-09-21'),
+          endDate: String(row['ថ្ងៃបញ្ចប់'] || '2026-12-25'),
           fullAmount,
           discountPercent,
           promotionAmount: 0,
@@ -1994,15 +2018,15 @@ export const SchoolProvider: React.FC<{ children: React.ReactNode }> = ({ childr
           paidKHR,
           owedRemain,
           exchangeRate: 4100,
-          method: (row['វិធីសាស្ត្រ'] as any) || 'ABA Bank',
+          method: (String(row['វិធីសាស្ត្រ'] || 'ABA Bank') as any),
           status: owedRemain <= 0 ? 'Paid' : (paidUSD > 0 || paidKHR > 0 ? 'Partial' : 'Due'),
           branchId: currentBranchId === 'all' ? 'fbis-02' : currentBranchId,
-          cashierName: currentUser.name,
+          cashierName: String(currentUser?.name || 'Administrator'),
           createdAt: new Date().toISOString()
         });
         count++;
       } catch (err: any) {
-        errors.push(`Row ${idx + 1}: ${err.message}`);
+        errors.push(`Row ${idx + 1}: ${err?.message || 'Error parsing payment row'}`);
       }
     });
 
@@ -2018,20 +2042,31 @@ export const SchoolProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     let count = 0;
     const newRecords: AcademicRecord[] = [];
 
+    if (!Array.isArray(rows)) {
+      return { successCount: 0, errors: ['Invalid data format: rows is not an array.'] };
+    }
+
     rows.forEach((row, idx) => {
       try {
-        const studentCode = row['អត្តលេខ'] || row['Student Code'] || '';
-        const studentName = row['ឈ្មោះសិស្ស'] || row['Student Name'] || '';
-        const classGrade = row['ថ្នាក់ទី'] || row['Grade'] || 'ថ្នាក់ទី ១២';
+        if (!row || typeof row !== 'object') return;
+        const studentCode = String(row['អត្តលេខ'] || row['Student Code'] || '').trim();
+        const studentName = String(row['ឈ្មោះសិស្ស'] || row['Student Name'] || '').trim();
+        const classGrade = String(row['ថ្នាក់ទី'] || row['Grade'] || 'ថ្នាក់ទី ១២').trim();
         
-        const matched = students.find(s => s.studentCode === studentCode || s.nameKhmer === studentName || s.nameEnglish === studentName);
+        const matched = students.find(s => {
+          const sCode = String(s.studentCode || '').trim();
+          const sKhmer = String(s.nameKhmer || '').trim();
+          const sEng = String(s.nameEnglish || '').trim();
+          return (studentCode && sCode === studentCode) || 
+                 (studentName && (sKhmer === studentName || sEng.toLowerCase() === studentName.toLowerCase()));
+        });
 
-        const khmScore = Number(row['ភាសាខ្មែរ'] || row['Khmer'] || 80);
-        const matScore = Number(row['គណិតវិទ្យា'] || row['Math'] || 85);
-        const engScore = Number(row['ភាសាអង់គ្លេស'] || row['English'] || 90);
-        const phyScore = Number(row['រូបវិទ្យា'] || row['Physics'] || 75);
-        const cheScore = Number(row['គីមីវិទ្យា'] || row['Chemistry'] || 80);
-        const bioScore = Number(row['ជីវវិទ្យា'] || row['Biology'] || 85);
+        const khmScore = Number(row['ភាសាខ្មែរ'] || row['Khmer'] || 80) || 80;
+        const matScore = Number(row['គណិតវិទ្យា'] || row['Math'] || 85) || 85;
+        const engScore = Number(row['ភាសាអង់គ្លេស'] || row['English'] || 90) || 90;
+        const phyScore = Number(row['រូបវិទ្យា'] || row['Physics'] || 75) || 75;
+        const cheScore = Number(row['គីមីវិទ្យា'] || row['Chemistry'] || 80) || 80;
+        const bioScore = Number(row['ជីវវិទ្យា'] || row['Biology'] || 85) || 85;
 
         const subjects: any[] = [
           { subjectId: 'khm', subjectName: 'Khmer Literature', subjectNameKhmer: 'អក្សរសាស្ត្រខ្មែរ', score: khmScore, maxScore: 100, grade: khmScore >= 90 ? 'A' : khmScore >= 80 ? 'B' : 'C' },
@@ -2047,11 +2082,11 @@ export const SchoolProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         const gpa = Number((average / 25).toFixed(2));
 
         newRecords.push({
-          id: `acad-import-${Date.now()}-${idx}`,
-          studentId: matched?.id || `std-${idx}`,
-          studentCode: matched?.studentCode || studentCode || `FBIS-${idx}`,
-          studentName: matched?.nameEnglish || studentName,
-          studentNameKhmer: matched?.nameKhmer || studentName,
+          id: `acad-import-${Date.now()}-${idx}-${Math.random().toString(36).slice(2, 6)}`,
+          studentId: String(matched?.id || `std-${idx}`),
+          studentCode: String(matched?.studentCode || studentCode || `FBIS-${idx}`),
+          studentName: String(matched?.nameEnglish || studentName || 'Student'),
+          studentNameKhmer: String(matched?.nameKhmer || studentName || 'សិស្ស'),
           classGrade,
           academicYear: '2025-2026',
           term: 'Semester 1',
@@ -2064,12 +2099,12 @@ export const SchoolProvider: React.FC<{ children: React.ReactNode }> = ({ childr
           totalStudentsInClass: rows.length,
           behaviorGrade: 'A',
           attendanceRate: 98,
-          teacherFeedback: row['យោបល់គ្រូ'] || row['Teacher Comment'] || 'Imported academic record.',
+          teacherFeedback: String(row['យោបល់គ្រូ'] || row['Teacher Comment'] || 'Imported academic record.'),
           dateRecorded: new Date().toISOString().split('T')[0]
         });
         count++;
       } catch (err: any) {
-        errors.push(`Row ${idx + 1}: ${err.message}`);
+        errors.push(`Row ${idx + 1}: ${err?.message || 'Error parsing grade record'}`);
       }
     });
 
