@@ -5,6 +5,8 @@ import { AddPaymentModal } from '../finance/AddPaymentModal';
 import { CallNotesModal } from './CallNotesModal';
 import { AdmissionFormModal } from './AdmissionFormModal';
 import { SinglePromoteModal } from './SinglePromoteModal';
+import { ExcelCopyPasteModal } from '../excel/ExcelCopyPasteModal';
+import { MoEYSClassRosterModal } from '../reports/MoEYSClassRosterModal';
 import { 
   Search, 
   Plus, 
@@ -13,12 +15,15 @@ import {
   Phone, 
   MapPin, 
   UserPlus, 
-  X,
-  Filter,
-  PhoneCall,
-  FileText,
-  Printer,
-  TrendingUp
+  X, 
+  Filter, 
+  PhoneCall, 
+  FileText, 
+  Printer, 
+  TrendingUp,
+  Clipboard,
+  FileSpreadsheet,
+  Users
 } from 'lucide-react';
 
 export const StudentsList: React.FC = () => {
@@ -42,6 +47,8 @@ export const StudentsList: React.FC = () => {
   const [isAdmissionModalOpen, setIsAdmissionModalOpen] = useState(false);
   const [admissionModalStudent, setAdmissionModalStudent] = useState<Student | null>(null);
   const [targetStudentForPromote, setTargetStudentForPromote] = useState<Student | null>(null);
+  const [isCopyPasteModalOpen, setIsCopyPasteModalOpen] = useState(false);
+  const [isMoEYSModalOpen, setIsMoEYSModalOpen] = useState(false);
 
   // New Student Form
   const [newNameKhmer, setNewNameKhmer] = useState('');
@@ -148,14 +155,41 @@ export const StudentsList: React.FC = () => {
           </div>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            onClick={() => setIsCopyPasteModalOpen(true)}
+            className="px-3.5 py-2 bg-emerald-700 hover:bg-emerald-800 text-white text-xs font-bold rounded-lg shadow-xs flex items-center gap-1.5 cursor-pointer transition-colors"
+            title="Copy and paste students directly from Excel or Google Sheets (Ctrl+C / Ctrl+V)"
+          >
+            <Clipboard className="w-4 h-4" />
+            <span>Paste from Excel (បិទភ្ជាប់ Excel)</span>
+          </button>
+
+          <button
+            onClick={() => setIsMoEYSModalOpen(true)}
+            className="px-3.5 py-2 bg-blue-800 hover:bg-blue-900 text-white text-xs font-bold rounded-lg shadow-xs flex items-center gap-1.5 cursor-pointer transition-colors"
+            title="Open official MoEYS class roster for print (បញ្ជីរាយនាមសិស្សតាមថ្នាក់ទម្រង់ក្រសួង)"
+          >
+            <Printer className="w-4 h-4" />
+            <span>MoEYS Roster (បញ្ជីក្រសួង)</span>
+          </button>
+
+          <button
+            onClick={() => setActiveTab('all-fields-students')}
+            className="px-3.5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-lg shadow-xs flex items-center gap-1.5 cursor-pointer transition-colors"
+            title="View all 25+ student fields with custom columns and Excel export"
+          >
+            <Users className="w-4 h-4" />
+            <span>All Fields Directory & Export</span>
+          </button>
+
           <button
             onClick={() => setActiveTab('student-promote')}
-            className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-lg shadow-xs flex items-center gap-1.5 cursor-pointer transition-colors"
+            className="px-3.5 py-2 bg-teal-600 hover:bg-teal-700 text-white text-xs font-bold rounded-lg shadow-xs flex items-center gap-1.5 cursor-pointer transition-colors"
             title="ឡើងថ្នាក់សិស្សជាថ្នាក់ ឬជាក្រុម (Class Promotion & Advancement)"
           >
             <TrendingUp className="w-4 h-4" />
-            <span>ឡើងថ្នាក់សិស្ស (Promote)</span>
+            <span>Promote (ឡើងថ្នាក់)</span>
           </button>
 
           <button
@@ -163,16 +197,16 @@ export const StudentsList: React.FC = () => {
               setAdmissionModalStudent(null);
               setIsAdmissionModalOpen(true);
             }}
-            className="px-4 py-2 bg-blue-700 hover:bg-blue-800 text-white text-xs font-bold rounded-lg shadow-xs flex items-center gap-1.5 cursor-pointer transition-colors"
+            className="px-3.5 py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-lg shadow-xs flex items-center gap-1.5 cursor-pointer transition-colors"
             title="Open official 2-page FBIS Admission Form (ពាក្យសុំចូលរៀន)"
           >
             <FileText className="w-4 h-4" />
-            <span>ពាក្យសុំចូលរៀន (Admission Form)</span>
+            <span>ពាក្យសុំចូលរៀន</span>
           </button>
 
           <button
             onClick={() => setIsAddStudentOpen(true)}
-            className="px-4 py-2 bg-slate-800 hover:bg-slate-900 text-white text-xs font-bold rounded-lg shadow-xs flex items-center gap-1.5 cursor-pointer transition-colors"
+            className="px-3.5 py-2 bg-slate-800 hover:bg-slate-900 text-white text-xs font-bold rounded-lg shadow-xs flex items-center gap-1.5 cursor-pointer transition-colors"
           >
             <UserPlus className="w-4 h-4" />
             <span>Quick Add</span>
@@ -489,6 +523,24 @@ export const StudentsList: React.FC = () => {
           isOpen={!!targetStudentForPromote}
           student={targetStudentForPromote}
           onClose={() => setTargetStudentForPromote(null)}
+        />
+      )}
+
+      {/* Copy & Paste from Excel Modal */}
+      {isCopyPasteModalOpen && (
+        <ExcelCopyPasteModal
+          isOpen={isCopyPasteModalOpen}
+          onClose={() => setIsCopyPasteModalOpen(false)}
+          defaultType="students"
+        />
+      )}
+
+      {/* Official MoEYS Class Roster Document Format Modal */}
+      {isMoEYSModalOpen && (
+        <MoEYSClassRosterModal
+          isOpen={isMoEYSModalOpen}
+          onClose={() => setIsMoEYSModalOpen(false)}
+          initialClassGrade={gradeFilter || undefined}
         />
       )}
     </div>

@@ -4,6 +4,7 @@ import { PaymentInvoice } from '../../types';
 import { AddPaymentModal } from './AddPaymentModal';
 import { InvoicePrintModal } from './InvoicePrintModal';
 import { ConfirmModal } from '../common/ConfirmModal';
+import { ExcelCopyPasteModal } from '../excel/ExcelCopyPasteModal';
 import * as XLSX from 'xlsx';
 import { 
   FileSpreadsheet, 
@@ -21,7 +22,8 @@ import {
   Layers,
   DollarSign,
   Clock,
-  TrendingUp
+  TrendingUp,
+  Clipboard
 } from 'lucide-react';
 import { 
   getSemesterConfig, 
@@ -63,6 +65,7 @@ export const PaymentsView: React.FC = () => {
   const [filterStartDate, setFilterStartDate] = useState('');
   const [filterTitle, setFilterTitle] = useState('');
   const [filterClass, setFilterClass] = useState('');
+  const [isCopyPasteModalOpen, setIsCopyPasteModalOpen] = useState(false);
   
   // Telegram status
   const [sendingTelegramId, setSendingTelegramId] = useState<string | null>(null);
@@ -400,10 +403,20 @@ export const PaymentsView: React.FC = () => {
           </div>
 
           <div className="flex items-center gap-2">
+            {/* Direct Paste from Excel button */}
+            <button
+              onClick={() => setIsCopyPasteModalOpen(true)}
+              className="px-3 py-1.5 bg-emerald-700 hover:bg-emerald-800 text-white text-xs font-semibold rounded-md flex items-center gap-1.5 transition-colors shadow-2xs cursor-pointer"
+              title="Copy & Paste payments directly from Excel or Google Sheets"
+            >
+              <Clipboard className="w-3.5 h-3.5" />
+              <span>Paste from Excel</span>
+            </button>
+
             {/* Export to XLS button matching screenshot button */}
             <button
               onClick={handleExportXLS}
-              className="px-3.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold rounded-md flex items-center gap-1.5 border border-slate-300 transition-colors shadow-2xs cursor-pointer"
+              className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold rounded-md flex items-center gap-1.5 border border-slate-300 transition-colors shadow-2xs cursor-pointer"
             >
               <FileSpreadsheet className="w-4 h-4 text-emerald-600" />
               <span>Export to XLS file</span>
@@ -648,6 +661,15 @@ export const PaymentsView: React.FC = () => {
         onConfirm={confirmModalData.onConfirm}
         onClose={() => setConfirmModalData(prev => ({ ...prev, isOpen: false }))}
       />
+
+      {/* Copy & Paste from Excel Modal */}
+      {isCopyPasteModalOpen && (
+        <ExcelCopyPasteModal
+          isOpen={isCopyPasteModalOpen}
+          onClose={() => setIsCopyPasteModalOpen(false)}
+          defaultType="payments"
+        />
+      )}
     </div>
   );
 };

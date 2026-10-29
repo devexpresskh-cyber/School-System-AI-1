@@ -361,6 +361,7 @@ export type NavigationTab =
   | 'students'
   | 'student-profile'
   | 'student-promote'
+  | 'all-fields-students'
   | 'payments'
   | 'due-payments'
   | 'expenses'

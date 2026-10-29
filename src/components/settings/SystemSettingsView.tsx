@@ -55,10 +55,13 @@ export const SystemSettingsView: React.FC = () => {
     paymentPeriods,
     updatePaymentPeriods,
     updatePaymentPeriod,
+    syncBillingCyclesFromPaymentPeriods,
     clearAllDataKeepSettings,
     testTelegramConnection,
     sendTelegramBackupNow
   } = useSchool();
+
+  const [periodSyncToast, setPeriodSyncToast] = useState<string | null>(null);
 
   const [activeTab, setActiveTab] = useState<'branches' | 'users' | 'general' | 'financial' | 'academic' | 'telegram' | 'payment-periods'>(() => {
     const saved = localStorage.getItem('fbis_settings_tab');
@@ -955,15 +958,46 @@ export const SystemSettingsView: React.FC = () => {
               </p>
             </div>
 
-            <button
-              type="button"
-              onClick={handleOpenAddPeriod}
-              className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-lg shadow-xs flex items-center gap-1.5 cursor-pointer self-start sm:self-auto transition-colors"
-            >
-              <Plus className="w-4 h-4" />
-              <span>បន្ថែមវដ្តបង់ប្រាក់ (Add Period)</span>
-            </button>
+            <div className="flex items-center gap-2 self-start sm:self-auto">
+              <button
+                type="button"
+                onClick={() => {
+                  syncBillingCyclesFromPaymentPeriods();
+                  setPeriodSyncToast('បានធ្វើសមកាលកម្មវដ្តបង់ប្រាក់ទៅកាន់ Services និង Revenue Categories ដោយជោគជ័យ!');
+                  setTimeout(() => setPeriodSyncToast(null), 4000);
+                }}
+                className="px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-lg border border-slate-300 shadow-xs flex items-center gap-1.5 cursor-pointer transition-colors"
+                title="ធ្វើសមកាលកម្មវដ្តបង់ប្រាក់ទៅកាន់ Services & Categories"
+              >
+                <RefreshCw className="w-3.5 h-3.5 text-blue-600" />
+                <span>ធ្វើសមកាលកម្មវដ្ត (Sync to Services)</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={handleOpenAddPeriod}
+                className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-lg shadow-xs flex items-center gap-1.5 cursor-pointer transition-colors"
+              >
+                <Plus className="w-4 h-4" />
+                <span>បន្ថែមវដ្តបង់ប្រាក់ (Add Period)</span>
+              </button>
+            </div>
           </div>
+
+          {periodSyncToast && (
+            <div className="bg-emerald-600 text-white px-4 py-2.5 rounded-lg shadow-xs flex items-center justify-between text-xs font-semibold animate-in fade-in">
+              <div className="flex items-center gap-2">
+                <CheckCircle2 className="w-4 h-4 text-emerald-200" />
+                <span>{periodSyncToast}</span>
+              </div>
+              <button
+                onClick={() => setPeriodSyncToast(null)}
+                className="text-white/80 hover:text-white ml-3 text-xs"
+              >
+                ✕
+              </button>
+            </div>
+          )}
 
           <div className="overflow-x-auto rounded-lg border border-slate-200">
             <table className="w-full text-xs text-left">

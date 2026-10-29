@@ -17,6 +17,7 @@ import { SqlImportAndAnalyticsView } from './components/sql/SqlImportAndAnalytic
 import { SystemSettingsView } from './components/settings/SystemSettingsView';
 import { BackupRestoreView } from './components/settings/BackupRestoreView';
 import { StudentPromoteView } from './components/students/StudentPromoteView';
+import { AllFieldsStudentDirectory } from './components/students/AllFieldsStudentDirectory';
 
 const MainLayout: React.FC = () => {
   const { activeTab, selectedBranch } = useSchool();
@@ -38,6 +39,8 @@ const MainLayout: React.FC = () => {
         return <ExpenseView />;
       case 'students':
         return <StudentsList />;
+      case 'all-fields-students':
+        return <AllFieldsStudentDirectory />;
       case 'student-profile':
         return <StudentProfile />;
       case 'student-promote':
@@ -74,7 +77,7 @@ const MainLayout: React.FC = () => {
           onCloseMobile={() => setIsSidebarOpen(false)} 
         />
 
-        <main className="flex-1 p-4 md:p-6 overflow-y-auto max-w-[1600px] mx-auto w-full">
+        <main className="flex-1 p-3 md:p-5 overflow-y-auto w-full max-w-none">
           {renderActiveView()}
         </main>
       </div>

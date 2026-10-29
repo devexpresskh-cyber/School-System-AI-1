@@ -510,6 +510,21 @@ export const ProductInventoryView: React.FC = () => {
 
   return (
     <div className="space-y-4">
+      {syncToast && (
+        <div className="bg-emerald-600 text-white px-4 py-2.5 rounded-lg shadow-md flex items-center justify-between text-xs font-semibold animate-in fade-in slide-in-from-top-2">
+          <div className="flex items-center gap-2">
+            <RefreshCw className="w-4 h-4 animate-spin text-emerald-200" />
+            <span>{syncToast.message}</span>
+          </div>
+          <button
+            onClick={() => setSyncToast(null)}
+            className="text-white/80 hover:text-white ml-4 text-xs font-bold"
+          >
+            ✕
+          </button>
+        </div>
+      )}
+
       {/* Top Tabs with Clean Separation: PRODUCT | SERVICE | STOCK | ACCOUNT SETTING */}
       <div className="bg-white px-6 pt-3 border-b border-slate-200 rounded-t-xl flex items-center justify-between overflow-x-auto">
         <div className="flex items-center gap-6 min-w-max">
@@ -575,14 +590,24 @@ export const ProductInventoryView: React.FC = () => {
         )}
 
         {activeTab === 'SERVICE' && (
-          <button
-            onClick={handleOpenAddService}
-            className="px-3.5 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-lg shadow-xs flex items-center gap-1.5 cursor-pointer mb-2 shrink-0 transition-transform hover:scale-105"
-            title="Add New Educational Service or Fee"
-          >
-            <Plus className="w-4 h-4" />
-            <span>+ Add Service (បន្ថែមសេវាកម្ម)</span>
-          </button>
+          <div className="flex items-center gap-2 mb-2 shrink-0">
+            <button
+              onClick={handleSyncBillingCycles}
+              className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-lg border border-slate-300 shadow-xs flex items-center gap-1.5 cursor-pointer transition-colors"
+              title="Sync Billing Cycle options directly from Payment Periods configured in System Settings"
+            >
+              <RefreshCw className="w-3.5 h-3.5 text-blue-600" />
+              <span>Sync from Payment Periods (ធ្វើសមកាលកម្មវដ្តបង់)</span>
+            </button>
+            <button
+              onClick={handleOpenAddService}
+              className="px-3.5 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-lg shadow-xs flex items-center gap-1.5 cursor-pointer transition-transform hover:scale-105"
+              title="Add New Educational Service or Fee"
+            >
+              <Plus className="w-4 h-4" />
+              <span>+ Add Service (បន្ថែមសេវាកម្ម)</span>
+            </button>
+          </div>
         )}
 
         {activeTab === 'STOCK' && (
@@ -614,13 +639,23 @@ export const ProductInventoryView: React.FC = () => {
         )}
 
         {activeTab === 'ACCOUNT SETTING' && (
-          <button
-            onClick={handleOpenAddCategory}
-            className="px-4 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-lg shadow-xs flex items-center gap-1.5 cursor-pointer mb-2 shrink-0"
-          >
-            <Plus className="w-4 h-4" />
-            <span>+ បន្ថែមប្រភេទចំណូល (New Revenue Category)</span>
-          </button>
+          <div className="flex items-center gap-2 mb-2 shrink-0">
+            <button
+              onClick={handleSyncBillingCycles}
+              className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-lg border border-slate-300 shadow-xs flex items-center gap-1.5 cursor-pointer transition-colors"
+              title="Sync Billing Cycle options directly from Payment Periods configured in System Settings"
+            >
+              <RefreshCw className="w-3.5 h-3.5 text-blue-600" />
+              <span>Sync from Payment Periods</span>
+            </button>
+            <button
+              onClick={handleOpenAddCategory}
+              className="px-4 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-lg shadow-xs flex items-center gap-1.5 cursor-pointer"
+            >
+              <Plus className="w-4 h-4" />
+              <span>+ បន្ថែមប្រភេទចំណូល (New Revenue Category)</span>
+            </button>
+          </div>
         )}
       </div>
 
@@ -1667,17 +1702,36 @@ export const ProductInventoryView: React.FC = () => {
                 </div>
 
                 <div>
-                  <label className="block font-semibold text-slate-700 mb-1">Billing Cycle</label>
+                  <label className="block font-semibold text-slate-700 mb-1">Billing Cycle (វដ្តបង់ប្រាក់)</label>
                   <select
-                    value={serviceBillingCycle}
-                    onChange={(e) => setServiceBillingCycle(e.target.value as any)}
-                    className="w-full h-9 px-2.5 border border-slate-300 rounded-md bg-white font-semibold"
+                    value={servicePaymentPeriodId || serviceBillingCycle}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      const matchedPeriod = paymentPeriods.find(p => p.id === val || p.code === val || p.nameKhmer === val || p.nameEnglish === val);
+                      if (matchedPeriod) {
+                        setServicePaymentPeriodId(matchedPeriod.id);
+                        setServiceBillingCycle(matchedPeriod.nameKhmer);
+                      } else {
+                        setServicePaymentPeriodId('');
+                        setServiceBillingCycle(val);
+                      }
+                    }}
+                    className="w-full h-9 px-2.5 border border-slate-300 rounded-md bg-white font-semibold text-xs"
                   >
-                    <option value="Monthly">Monthly (ប្រចាំខែ)</option>
-                    <option value="Term">Term (ប្រចាំត្រីមាស)</option>
-                    <option value="Semester">Semester (ប្រចាំឆមាស)</option>
-                    <option value="Annual">Annual (ប្រចាំឆ្នាំ)</option>
-                    <option value="One-Time">One-Time (ម្តងគត់)</option>
+                    <optgroup label="⚡ វដ្តបង់ផ្លូវការ (Configured Payment Periods)">
+                      {paymentPeriods.filter(p => p.isActive).map(p => (
+                        <option key={p.id} value={p.id}>
+                          {p.nameKhmer} ({p.nameEnglish}) - {p.monthsCount} ខែ
+                        </option>
+                      ))}
+                    </optgroup>
+                    <optgroup label="ទូទៅ (Standard Cycles)">
+                      <option value="Monthly">Monthly (ប្រចាំខែ)</option>
+                      <option value="Term">Term (ប្រចាំត្រីមាស)</option>
+                      <option value="Semester">Semester (ប្រចាំឆមាស)</option>
+                      <option value="Annual">Annual (ប្រចាំឆ្នាំ)</option>
+                      <option value="One-Time">One-Time (ម្តងគត់)</option>
+                    </optgroup>
                   </select>
                 </div>
               </div>
@@ -1967,15 +2021,34 @@ export const ProductInventoryView: React.FC = () => {
                     វដ្តនៃការបង់ប្រាក់ (Billing Cycle)
                   </label>
                   <select
-                    value={catBillingCycle}
-                    onChange={(e) => setCatBillingCycle(e.target.value)}
-                    className="w-full h-9 px-2.5 border border-slate-300 rounded-md bg-white font-khmer font-semibold"
+                    value={catPaymentPeriodId || catBillingCycle}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      const matchedPeriod = paymentPeriods.find(p => p.id === val || p.code === val || p.nameKhmer === val || p.nameEnglish === val);
+                      if (matchedPeriod) {
+                        setCatPaymentPeriodId(matchedPeriod.id);
+                        setCatBillingCycle(matchedPeriod.nameKhmer);
+                      } else {
+                        setCatPaymentPeriodId('');
+                        setCatBillingCycle(val);
+                      }
+                    }}
+                    className="w-full h-9 px-2.5 border border-slate-300 rounded-md bg-white font-khmer font-semibold text-xs"
                   >
-                    <option value="Term">បង់ជា Term (ត្រីមាស/Term)</option>
-                    <option value="Monthly">បង់ប្រចាំខែ (Monthly)</option>
-                    <option value="Semester">បង់ប្រចាំឆមាស (Semester)</option>
-                    <option value="Annual">បង់ប្រចាំឆ្នាំ (Annual)</option>
-                    <option value="One-Time">បង់មួយលើកគត់ (One-Time)</option>
+                    <optgroup label="⚡ វដ្តបង់កំណត់ផ្លូវការ (Configured Periods)">
+                      {paymentPeriods.filter(p => p.isActive).map(p => (
+                        <option key={p.id} value={p.id}>
+                          {p.nameKhmer} ({p.nameEnglish}) - {p.monthsCount} ខែ
+                        </option>
+                      ))}
+                    </optgroup>
+                    <optgroup label="ទូទៅ (Standard Cycles)">
+                      <option value="Term">បង់ជា Term (ត្រីមាស/Term)</option>
+                      <option value="Monthly">បង់ប្រចាំខែ (Monthly)</option>
+                      <option value="Semester">បង់ប្រចាំឆមាស (Semester)</option>
+                      <option value="Annual">បង់ប្រចាំឆ្នាំ (Annual)</option>
+                      <option value="One-Time">បង់មួយលើកគត់ (One-Time)</option>
+                    </optgroup>
                   </select>
                 </div>
               </div>

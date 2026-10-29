@@ -68,6 +68,12 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onCloseMobile }) => {
       badge: branchStudents.length
     },
     {
+      id: 'all-fields-students',
+      labelEn: 'All Fields Student Directory & Export',
+      labelKm: 'បញ្ជីសិស្សលម្អិត & Export',
+      icon: <Users className="w-5 h-5 text-blue-400" />
+    },
+    {
       id: 'student-promote',
       labelEn: 'Student Promotion',
       labelKm: 'ឡើងថ្នាក់សិស្ស',

@@ -154,6 +154,22 @@ export const AddPaymentModal: React.FC<AddPaymentModalProps> = ({
 
   const handlePaymentTypeChange = (typeVal: string) => {
     setPaymentType(typeVal);
+    // Check if this matches a configured payment period
+    const matchedPeriod = paymentPeriods.find(p => 
+      p.nameKhmer === typeVal || 
+      p.nameEnglish === typeVal || 
+      p.code === typeVal ||
+      typeVal.includes(p.nameKhmer) ||
+      typeVal.includes(p.nameEnglish)
+    );
+
+    if (matchedPeriod) {
+      setSelectedPeriodId(matchedPeriod.id);
+      if (matchedPeriod.startDate) setStartDate(matchedPeriod.startDate);
+      if (matchedPeriod.endDate) setEndDate(matchedPeriod.endDate);
+      return;
+    }
+
     // Auto-calculate dates for 10-week Term or Semester
     const baseDate = startDate ? new Date(startDate) : new Date(issuedDate);
     if (!isNaN(baseDate.getTime())) {
@@ -177,7 +193,7 @@ export const AddPaymentModal: React.FC<AddPaymentModalProps> = ({
     }
   };
 
-  const handleApplyClassFeeItem = (item: { code: string; nameKhmer: string; amount: number; detail: string }) => {
+  const handleApplyClassFeeItem = (item: { id?: string; code: string; nameKhmer: string; amount: number; detail: string; type?: 'feeCategory' | 'service' }) => {
     setTitle(item.nameKhmer);
     setDescription(`${item.code} - ${item.nameKhmer} (${item.detail})`);
     setFullAmount(item.amount);
@@ -186,6 +202,19 @@ export const AddPaymentModal: React.FC<AddPaymentModalProps> = ({
     const payable = Math.max(0, Number((item.amount * (1 - disc / 100)).toFixed(2)));
     setAmountPaidUSD(payable);
     setAmountReceivedUSD(payable);
+
+    // If item links to a payment period, sync it
+    const matchedService = services.find(s => s.code === item.code || s.nameKhmer === item.nameKhmer);
+    const matchedCat = feeCategories.find(fc => fc.code === item.code || fc.nameKhmer === item.nameKhmer);
+    const periodId = matchedService?.paymentPeriodId || matchedCat?.paymentPeriodId;
+    const cycle = matchedService?.billingCycle || matchedCat?.billingCycle;
+
+    if (periodId) {
+      handleSelectPaymentPeriod(periodId);
+    } else if (cycle) {
+      const p = paymentPeriods.find(per => per.nameKhmer === cycle || per.nameEnglish === cycle || per.code === cycle || per.nameKhmer.includes(cycle));
+      if (p) handleSelectPaymentPeriod(p.id);
+    }
   };
 
   const handleTitleChange = (val: string) => {
@@ -195,7 +224,12 @@ export const AddPaymentModal: React.FC<AddPaymentModalProps> = ({
       setFullAmount(matchedCategory.defaultAmount);
       setAmountPaidUSD(matchedCategory.defaultAmount);
       setAmountReceivedUSD(matchedCategory.defaultAmount);
-      if (matchedCategory.programType === 'english' || val.toLowerCase().includes('english') || val.includes('អង់គ្លេស')) {
+      if (matchedCategory.paymentPeriodId) {
+        handleSelectPaymentPeriod(matchedCategory.paymentPeriodId);
+      } else if (matchedCategory.billingCycle) {
+        const p = paymentPeriods.find(per => per.nameKhmer === matchedCategory.billingCycle || per.nameEnglish === matchedCategory.billingCycle || per.code === matchedCategory.billingCycle);
+        if (p) handleSelectPaymentPeriod(p.id);
+      } else if (matchedCategory.programType === 'english' || val.toLowerCase().includes('english') || val.includes('អង់គ្លេស')) {
         handlePaymentTypeChange('Term 1 (ត្រីមាសទី១)');
       }
       return;
@@ -206,7 +240,12 @@ export const AddPaymentModal: React.FC<AddPaymentModalProps> = ({
       setFullAmount(matchedService.feeUSD);
       setAmountPaidUSD(matchedService.feeUSD);
       setAmountReceivedUSD(matchedService.feeUSD);
-      if (matchedService.nameEnglish.toLowerCase().includes('english') || matchedService.nameKhmer.includes('អង់គ្លេស')) {
+      if (matchedService.paymentPeriodId) {
+        handleSelectPaymentPeriod(matchedService.paymentPeriodId);
+      } else if (matchedService.billingCycle) {
+        const p = paymentPeriods.find(per => per.nameKhmer === matchedService.billingCycle || per.nameEnglish === matchedService.billingCycle || per.code === matchedService.billingCycle);
+        if (p) handleSelectPaymentPeriod(p.id);
+      } else if (matchedService.nameEnglish.toLowerCase().includes('english') || matchedService.nameKhmer.includes('អង់គ្លេស')) {
         handlePaymentTypeChange('Term 1 (ត្រីមាសទី១)');
       }
       return;
@@ -528,6 +567,15 @@ export const AddPaymentModal: React.FC<AddPaymentModalProps> = ({
                   onChange={(e) => handlePaymentTypeChange(e.target.value)}
                   className="w-full h-9 px-3 text-xs border border-slate-300 rounded-md focus:ring-1 focus:ring-blue-500 focus:outline-none font-khmer bg-white"
                 >
+                  {paymentPeriods.filter(p => p.isActive).length > 0 && (
+                    <optgroup label="⚡ វដ្តបង់ប្រាក់ផ្លូវការ (Configured Payment Periods)">
+                      {paymentPeriods.filter(p => p.isActive).map(p => (
+                        <option key={p.id} value={p.nameKhmer}>
+                          {p.nameKhmer} ({p.nameEnglish}) - {p.monthsCount} ខែ
+                        </option>
+                      ))}
+                    </optgroup>
+                  )}
                   <optgroup label="🇬🇧 កម្មវិធីភាសាអង់គ្លេស (English Program Term - 10 Weeks)">
                     <option value="Term 1 (ត្រីមាសទី១)">Term 1 (ត្រីមាសទី១ - 10 Weeks)</option>
                     <option value="Term 2 (ត្រីមាសទី២)">Term 2 (ត្រីមាសទី២ - 10 Weeks)</option>

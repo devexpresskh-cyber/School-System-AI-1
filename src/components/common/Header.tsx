@@ -12,9 +12,11 @@ import {
   Settings as SettingsIcon,
   Menu,
   UserCheck,
-  Check
+  Check,
+  Sparkles
 } from 'lucide-react';
 import { UserRole } from '../../types';
+import { AdminAiChatModal } from '../ai/AdminAiChatModal';
 
 interface HeaderProps {
   onToggleSidebar?: () => void;
@@ -38,6 +40,7 @@ export const Header: React.FC<HeaderProps> = ({ onToggleSidebar }) => {
 
   const [isBranchMenuOpen, setIsBranchMenuOpen] = useState(false);
   const [isProfileMenuOpen, setIsProfileMenuOpen] = useState(false);
+  const [isAiChatOpen, setIsAiChatOpen] = useState(false);
   const [searchInput, setSearchInput] = useState('');
   const [searchResults, setSearchResults] = useState<typeof students>([]);
   const [isSearchFocused, setIsSearchFocused] = useState(false);
@@ -241,6 +244,19 @@ export const Header: React.FC<HeaderProps> = ({ onToggleSidebar }) => {
 
       {/* Right zone: Notifications, Language, Profile Pill */}
       <div className="flex items-center gap-2 md:gap-3 shrink-0">
+        {/* Admin AI Chat Button (Admin Only) */}
+        {(currentUser?.role === 'super_admin' || currentUser?.role === 'campus_admin') && (
+          <button
+            onClick={() => setIsAiChatOpen(true)}
+            className="flex items-center gap-1.5 px-3 py-1 bg-gradient-to-r from-amber-400 to-amber-500 hover:from-amber-300 hover:to-amber-400 text-slate-900 font-bold text-xs rounded-full shadow-xs transition-all hover:scale-105 cursor-pointer animate-pulse"
+            title="AI Chat for updating student info or recording payments (Admin Only)"
+          >
+            <Sparkles className="w-3.5 h-3.5 text-slate-950 fill-amber-300" />
+            <span className="font-mono">AI Chat</span>
+            <span className="bg-slate-950 text-amber-300 text-[9px] px-1.5 py-0.2 rounded-full font-bold">Admin</span>
+          </button>
+        )}
+
         {/* Messages icon */}
         <button 
           onClick={() => setActiveTab('students')}
@@ -368,6 +384,14 @@ export const Header: React.FC<HeaderProps> = ({ onToggleSidebar }) => {
           )}
         </div>
       </div>
+
+      {/* Admin AI Chat Modal */}
+      {isAiChatOpen && (
+        <AdminAiChatModal
+          isOpen={isAiChatOpen}
+          onClose={() => setIsAiChatOpen(false)}
+        />
+      )}
     </header>
   );
 };
